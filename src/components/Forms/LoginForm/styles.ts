@@ -1,158 +1,80 @@
 import styled from 'styled-components';
 
-export const Container = styled.div`
-  display: flex;
+export * from '@/components/Forms/fields';
+
+export const Card = styled.div`
   width: 100%;
-  height: 100vh;
-`;
-
-export const FormContainer = styled.form`
-  height: 100%;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  background-color: #141414;
-  color: white;
-`;
-
-export const Title = styled.h1`
-  width: 450px;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-
-  @media (max-width: 1065px) {
-    font-size: 1.4rem;
-    width: 300px;
-  }
-`;
-
-export const SubTitle = styled.p`
-  width: 450px;
-  margin-bottom: 2rem;
-
-  @media (max-width: 1065px) {
-    width: 300px;
-    font-size: 0.9rem;
-  }
-`;
-
-export const Label = styled.p`
-  width: 450px;
-  margin-top: 1rem;
-  margin-bottom: 5px;
-
-  @media (max-width: 1065px) {
-    width: 300px;
-  }
-`;
-
-export const Input = styled.input`
-  border: 1px solid #9eabbe;
+  max-width: 26rem;
+  padding: 2.5rem 2rem;
+  border-radius: 16px;
   background: ${({ theme }) => theme.colors.white};
-  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.05);
-  border-radius: 5px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+`;
 
-  padding: 0 1rem;
-  width: 450px;
-  height: 2.75rem;
-  margin-top: 8px;
+/** Logo da marca acima do título do cartão de login. */
+export const Marca = styled.img`
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 0.75rem;
+  border-radius: 12px;
+`;
 
-  font-size: 0.9rem;
-  font-weight: 400;
-  color: ${({ theme }) => theme.colors.black};
-  outline: none;
+export const Titulo = styled.header`
+  margin-bottom: 1.75rem;
+  text-align: center;
 
-  &:disabled {
-    color: ${({ theme }) => theme.colors.default};
+  h1 {
+    font-size: 1.6rem;
+    color: ${({ theme }) => theme.colors.primary};
   }
 
-  &::placeholder {
-    color: ${({ theme }) => theme.colors.gray4c};
-  }
-
-  &:focus-visible {
-    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  @media (max-width: 1065px) {
-    width: 300px;
+  p {
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+    color: ${({ theme }) => theme.colors.gray88};
   }
 `;
 
-export const Button = styled.button`
-  width: 200px;
-  padding: 0.75rem;
-  background-color: ${({ theme }) => theme.colors.primary};
-  border: none;
-  border-radius: 4px;
-  color: white;
-  font-size: 1rem;
-  margin: 3rem 0 2rem 0;
-  cursor: pointer;
+/** Atalhos dos dois perfis pré-cadastrados (premissa de login mockado). */
+export const Atalhos = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.graydf};
+
+  small {
+    font-size: 0.78rem;
+    text-align: center;
+    color: ${({ theme }) => theme.colors.gray88};
+  }
+`;
+
+export const Atalho = styled.button`
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: ${({ theme }) => theme.colors.grayf6};
+  border: 1px solid ${({ theme }) => theme.colors.graydf};
+  color: ${({ theme }) => theme.colors.gray4c};
 
   &:hover {
-    background-color: #057449;
+    border-color: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme }) => theme.colors.primary};
   }
 `;
 
-export const ErrorMessage = styled.h3`
-  width: 450px;
-  margin-top: 5px;
-  font-size: 8pt;
-  font-weight: 400;
-  color: ${({ theme }) => theme.colors.error};
+export const Cadastro = styled.p`
+  margin-top: 1.5rem;
+  font-size: 0.88rem;
+  text-align: center;
+  color: ${({ theme }) => theme.colors.gray88};
 
-  @media (max-width: 1065px) {
-    width: 300px;
-  }
-`;
-
-export const RegisterText = styled.h3`
-  width: 450px;
-  font-size: 10pt;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.white};
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  text-decoration: none;
-  margin-top: 1rem;
-
-  span {
-    color: ${({ theme }) => theme.colors.white};
-  }
-
-  label {
-    font-size: 10pt;
-    font-weight: 500;
-    color: ${({ theme }) => theme.colors.white};
-    user-select: none;
-  }
-
-  input {
-    height: 15px;
-    width: 15px;
-  }
-
-  @media (max-width: 1065px) {
-    width: 300px;
-  }
-`;
-
-export const CheckboxLabel = styled.label``;
-
-export const Field = styled.div`
-  position: relative;
-  display: flex;
-  flex-direction: column;
-
-  .icon {
-    position: absolute;
-    right: 20px;
-    bottom: 10px;
-    cursor: pointer;
+  a {
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.primary};
   }
 `;
