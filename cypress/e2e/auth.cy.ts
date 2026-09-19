@@ -20,6 +20,13 @@ const lerPayload = (token: string) =>
     exp: number;
   };
 
+/**
+ * O Next compila cada rota na primeira visita em modo dev. Esperar o
+ * redirecionamento com o padrão de 15s deixa o teste instável quando a
+ * máquina está ocupada — a rota ainda nem renderizou.
+ */
+const ESPERA_ROTA = { timeout: 60000 };
+
 const CHAVE_TOKEN = '@petshop: accessToken';
 const CHAVE_USUARIO = '@petshop: user';
 
@@ -131,13 +138,13 @@ describe('Proteção de rotas', () => {
   it('visitante não alcança a área administrativa', () => {
     cy.visit('/admin/pedidos');
 
-    cy.location('pathname').should('eq', '/');
+    cy.location('pathname', ESPERA_ROTA).should('eq', '/');
   });
 
   it('visitante não alcança o catálogo', () => {
     cy.visit('/produtos');
 
-    cy.location('pathname').should('eq', '/');
+    cy.location('pathname', ESPERA_ROTA).should('eq', '/');
   });
 
   it('cliente logado é devolvido ao tentar a área administrativa', () => {
@@ -146,7 +153,7 @@ describe('Proteção de rotas', () => {
 
     cy.visit('/admin/pedidos');
 
-    cy.location('pathname').should('eq', '/produtos');
+    cy.location('pathname', ESPERA_ROTA).should('eq', '/produtos');
   });
 
   it('administrador logado é devolvido ao tentar a loja', () => {
@@ -155,7 +162,7 @@ describe('Proteção de rotas', () => {
 
     cy.visit('/produtos');
 
-    cy.location('pathname').should('eq', '/admin/pedidos');
+    cy.location('pathname', ESPERA_ROTA).should('eq', '/admin/pedidos');
   });
 });
 

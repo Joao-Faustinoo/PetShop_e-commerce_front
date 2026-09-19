@@ -11,7 +11,8 @@
  * EXIGE: API em localhost:3333 com o banco populado pelo seed.
  *
  * ATENDE: RF0021, RF0022, RF0023, RF0024, RF0025, RN0021, RN0022, RN0023,
- * RN0026, RN0027, RNF0012, RNF0035
+ * RN0026, RN0027, RNF0035 e a parte observável da RNF0012 (o dado alterado
+ * é mantido; data, hora e usuário ainda não são persistidos).
  */
 
 /** CPF válido gerado na hora, para não colidir com cadastros anteriores. */
@@ -123,6 +124,50 @@ describe('Cadastrar cliente', () => {
     ).should('be.visible');
     cy.get('@chamouApi').should('not.have.been.called');
   });
+
+  it('CT-02c · exige os dados obrigatórios do cliente [RN0026]', () => {
+    cy.intercept('POST', '**/clientes', cy.spy().as('chamouApi'));
+
+    cy.visit('/cadastro');
+
+    // Envia em branco: gênero e tipo de telefone já vêm preenchidos por
+    // padrão, então o que falta é o conjunto que a RN0026 exige.
+    cy.contains('button', 'Concluir cadastro').click();
+
+    cy.contains('Nome é obrigatório').should('be.visible');
+    cy.contains('Data de nascimento é obrigatória').should('be.visible');
+    cy.contains('CPF é obrigatório').should('be.visible');
+    cy.contains('E-mail é obrigatório').should('be.visible');
+    cy.contains('DDD é obrigatório').should('be.visible');
+    cy.contains('Número de telefone é obrigatório').should('be.visible');
+
+    cy.get('@chamouApi').should('not.have.been.called');
+  });
+
+  it('CT-02d · exige todos os campos do endereço [RN0023]', () => {
+    cy.visit('/cadastro');
+
+    cy.contains('legend', 'Endereço de cobrança')
+      .parent()
+      .contains('button', 'Informar endereço')
+      .click();
+
+    // Tipo de residência, tipo de logradouro e país já vêm preenchidos;
+    // os demais campos da RN0023 são cobrados aqui.
+    cy.contains('button', 'Adicionar endereço').click();
+
+    cy.contains('Dê um nome a este endereço').should('be.visible');
+    cy.contains('Logradouro é obrigatório').should('be.visible');
+    cy.contains('Número é obrigatório').should('be.visible');
+    cy.contains('Bairro é obrigatório').should('be.visible');
+    cy.contains('CEP é obrigatório').should('be.visible');
+    cy.contains('Cidade é obrigatória').should('be.visible');
+    cy.contains('Estado é obrigatório').should('be.visible');
+
+    // O endereço não foi aceito: o resumo continua vazio no formulário.
+    cy.contains('button', 'Cancelar').click();
+    cy.contains('Nenhum endereço informado').should('exist');
+  });
 });
 
 describe('Consultar cliente', () => {
@@ -186,7 +231,7 @@ describe('Consultar cliente', () => {
 });
 
 describe('Alterar cliente', () => {
-  it('CT-06 · altera os dados cadastrais e a consulta reflete [RF0022, RNF0012]', () => {
+  it('CT-06 · altera os dados cadastrais e a consulta reflete [RF0022]', () => {
     cy.intercept('PUT', '**/clientes/*').as('alterar');
 
     cy.entrarComo('administrador');
@@ -224,7 +269,7 @@ describe('Inativar e reativar cliente', () => {
     cy.visit('/admin/clientes');
   });
 
-  it('CT-07 · inativa exigindo justificativa e preserva o cadastro [RF0023, RNF0012]', () => {
+  it('CT-07 · inativa exigindo justificativa e preserva o cadastro [RF0023]', () => {
     cy.intercept('PATCH', '**/clientes/*/situacao').as('situacao');
 
     cy.get('input[placeholder="Buscar por nome..."]').type('Juliana');
@@ -234,7 +279,8 @@ describe('Inativar e reativar cliente', () => {
 
     cy.contains('Inativar cliente').should('be.visible');
 
-    // RNF0012: sem justificativa não há o que registrar, e o botão não libera.
+    // Sem justificativa o botão não libera: é ela que fica gravada no
+    // cadastro, e o CT-10 verifica esse registro.
     cy.contains('button', 'Inativar').should('be.disabled');
     cy.get('#justificativa-cliente').type(
       'Solicitação da própria cliente por telefone.',
@@ -247,7 +293,7 @@ describe('Inativar e reativar cliente', () => {
     cy.contains('tbody tr', 'Juliana').should('contain.text', 'Inativo');
   });
 
-  it('CT-08 · reativa o cadastro inativado [RF0023, RNF0012]', () => {
+  it('CT-08 · reativa o cadastro inativado [RF0023]', () => {
     cy.intercept('PATCH', '**/clientes/*/situacao').as('situacao');
 
     cy.get('input[placeholder="Buscar por nome..."]').type('Juliana');
@@ -292,5 +338,35 @@ describe('Inativar e reativar cliente', () => {
     // O cadastro continua na base depois da tentativa.
     cy.visit('/admin/clientes');
     cy.contains('tbody tr', 'João Faustino').should('be.visible');
+  });
+
+  it('CT-10 · a justificativa da inativação fica registrada no cadastro [RNF0012]', () => {
+    const justificativa = `Inativado no teste ${Date.now() % 100000}.`;
+
+    cy.get('input[placeholder="Buscar por nome..."]').type('Fernanda');
+    cy.contains('tbody tr', 'Fernanda')
+      .find('button[aria-label^="Inativar"]')
+      .click();
+    cy.get('#justificativa-cliente').type(justificativa);
+    cy.contains('button', 'Inativar').click();
+
+    // O texto escrito pelo administrador foi gravado e volta do banco no
+    // detalhe do cadastro. É a parte da RNF0012 que o sistema já atende:
+    // manter o dado alterado. Data, hora e usuário responsável ainda não
+    // são persistidos — o log de transação segue mockado no front.
+    cy.contains('tbody tr', 'Fernanda')
+      .find('button[aria-label^="Ver"]')
+      .click();
+    cy.contains(`Cadastro inativado: ${justificativa}`).should('be.visible');
+
+    // Devolve o cadastro à situação de origem.
+    cy.visit('/admin/clientes');
+    cy.get('input[placeholder="Buscar por nome..."]').type('Fernanda');
+    cy.contains('tbody tr', 'Fernanda')
+      .find('button[aria-label^="Reativar"]')
+      .click();
+    cy.get('#justificativa-cliente').type('Reativado ao fim do teste.');
+    cy.contains('button', 'Reativar').click();
+    cy.contains('tbody tr', 'Fernanda').should('contain.text', 'Ativo');
   });
 });
