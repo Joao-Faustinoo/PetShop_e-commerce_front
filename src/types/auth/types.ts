@@ -6,7 +6,7 @@
  *
  * COMO FARÁ: exporta `Perfil = CLIENTE | ADMIN`, `Usuario` (id, nome,
  * email, perfil e clienteId quando for CLIENTE), `LoginPayload`
- * (email + senha) e `LoginResponse` (token fake + usuario). Não há tipo
+ * (email + senha) e `LoginResponse` (token JWT + usuario). Não há tipo
  * para recuperação de senha nem confirmação — removidos do escopo pelas
  * premissas do documento.
  *
@@ -30,7 +30,10 @@ export interface LoginPayload {
 }
 
 export interface LoginResponse {
-  /** Token fake: não há autenticação real por premissa do DRS. */
+  /**
+   * JWT assinado pela API. O login continua aceitando qualquer senha, como
+   * o DRS manda, mas o token é real: é ele que abre as rotas protegidas.
+   */
   token: string;
   usuario: Usuario;
 }

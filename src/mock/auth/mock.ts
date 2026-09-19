@@ -1,41 +1,26 @@
 /**
- * [MODEL] Mock de usuários
+ * [MODEL] Mock de credenciais
  *
- * O QUE FAZ: guarda os dois usuários pré-cadastrados que as premissas do
- * DRS exigem — um com perfil CLIENTE e um com perfil ADMIN — para que o
- * login mockado consiga simular as duas sessões.
+ * O QUE FAZ: guarda o par e-mail/senha dos dois usuários pré-cadastrados
+ * que as premissas do DRS exigem — um com perfil CLIENTE e um com perfil
+ * ADMIN — para que a tela de login os ofereça como atalho.
  *
- * COMO FARÁ: exporta `mockUsuarios` com um cliente (vinculado ao cliente
- * de id 1 do mockClientes) e um administrador, e `mockCredenciais` com o
- * par e-mail/senha aceito de cada um. O authService compara o e-mail
- * recebido contra esta lista; a senha é aceita sem nenhuma verificação
- * criptográfica, conforme a premissa.
+ * COMO FARÁ: exporta `mockCredenciais`, que o LoginForm percorre para
+ * montar os botões de preenchimento rápido. A senha não passa por
+ * verificação nenhuma, nem aqui nem na API, conforme a premissa.
+ *
+ * ESTADO: `mockUsuarios` saiu daqui quando o authService passou a chamar
+ * POST /auth/login. Quem devolve o `Usuario` da sessão agora é a API, que
+ * lê o cadastro real no banco — ver `api/src/services/authService.ts`.
  *
  * ATENDE: premissas do projeto (login mockado com dois perfis)
  */
 
-import { Usuario } from '@/types/auth/types';
-
-export const mockUsuarios: Usuario[] = [
-  {
-    id: 1,
-    nome: 'João Faustino',
-    email: 'user.cliente@email.com',
-    perfil: 'CLIENTE',
-    clienteId: 1,
-  },
-  {
-    id: 2,
-    nome: 'João Faustino',
-    email: 'user.admin@email.com',
-    perfil: 'ADMIN',
-  },
-];
-
 /**
- * Credenciais exibidas na tela de login como atalho. A senha não passa por
- * nenhuma verificação — está aqui apenas para o formulário ter o que
- * preencher, conforme a premissa de login mockado.
+ * Credenciais exibidas na tela de login como atalho. O e-mail precisa
+ * existir no banco (o `user.cliente@email.com` vem do seed; o
+ * `user.admin@email.com` é o administrador pré-cadastrado na API); a senha
+ * está aqui apenas para o formulário ter o que preencher.
  */
 export const mockCredenciais = [
   {

@@ -18,7 +18,11 @@
     "ecmaVersion": 13,
     "sourceType": "module"
   },
-  "plugins": ["react", "@typescript-eslint", "prettier"],
+  "plugins": [
+    "react",
+    "@typescript-eslint",
+    "prettier"
+  ],
   "rules": {
     "global-require": "off",
     "no-console": "off",
@@ -28,7 +32,11 @@
     "arrow-body-style": "off",
     "no-undef": "off",
     "no-confusing-arrow": "off",
-    "no-restricted-globals": ["error", "event", "fdescribe"],
+    "no-restricted-globals": [
+      "error",
+      "event",
+      "fdescribe"
+    ],
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-empty-interface": "off",
     "@typescript-eslint/no-use-before-define": "off",
@@ -43,7 +51,12 @@
     "react/jsx-curly-newline": "off",
     "react/jsx-indent": "off",
     "react/jsx-wrap-multilines": "off",
-    "jsx-a11y/label-has-associated-control": ["error", { "assert": "either" }],
+    "jsx-a11y/label-has-associated-control": [
+      "error",
+      {
+        "assert": "either"
+      }
+    ],
     "jsx-a11y/control-has-associated-label": "off",
     "import/prefer-default-export": "off",
     "react/jsx-no-bind": "off",
@@ -64,7 +77,9 @@
     "react/jsx-filename-extension": [
       1,
       {
-        "extensions": [".tsx"]
+        "extensions": [
+          ".tsx"
+        ]
       }
     ],
     "no-use-before-define": "off",
@@ -90,5 +105,24 @@
     "import/resolver": {
       "typescript": {}
     }
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "cypress.config.ts",
+        "cypress/**/*.ts",
+        "scripts/**/*.mjs"
+      ],
+      "rules": {
+        "import/no-extraneous-dependencies": [
+          "error",
+          {
+            "devDependencies": true
+          }
+        ],
+        "no-unused-expressions": "off",
+        "@typescript-eslint/no-unused-expressions": "off"
+      }
+    }
+  ]
 }

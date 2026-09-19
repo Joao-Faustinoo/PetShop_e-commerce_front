@@ -1,42 +1,35 @@
 /**
  * [MODEL] Service de autenticação
  *
- * O QUE FAZ: resolve o login e o logout. Permanece mockado mesmo depois
- * da integração com o back-end, conforme as premissas do DRS.
+ * O QUE FAZ: resolve o login e o logout.
  *
- * COMO FARÁ: `login(payload)` procura o e-mail em `mockCredenciais`,
- * ignora a senha (sem hash, sem verificação — premissa explícita), e
- * devolve `LoginResponse` com um token fake e o `Usuario` correspondente,
- * já contendo o perfil CLIENTE ou ADMIN. Se o e-mail não existir, rejeita
- * com "E-mail ou senha inválidos". `logout()` apenas resolve, pois não há
- * sessão no servidor para invalidar.
+ * COMO FARÁ: `login(payload)` faz POST /auth/login e devolve
+ * `LoginResponse` com o token e o `Usuario` já com o perfil CLIENTE ou
+ * ADMIN. A API responde 401 com "E-mail ou senha inválidos" quando o
+ * e-mail não existe, e o `api()` converte isso no Error que o handleToast
+ * exibe. `logout()` apenas resolve, pois não há sessão no servidor para
+ * invalidar — o token é um JWT e vale até expirar.
+ *
+ * A senha continua não sendo verificada: a premissa do DRS vale também no
+ * back-end, que aceita qualquer senha para um e-mail cadastrado. O que
+ * mudou em relação ao mock é que o token agora é assinado de verdade, e é
+ * ele que abre as rotas protegidas da API.
  *
  * ATENDE: premissas do projeto (login mockado, dois usuários)
  */
 
-import { mockUsuarios } from '@/mock/auth/mock';
-import { delay, delayErro } from '@/service/api/delay';
+import { api } from '@/service/api/request';
 import { LoginPayload, LoginResponse } from '@/types/auth/types';
 
 export const authService = {
-  async login({ email }: LoginPayload): Promise<LoginResponse> {
-    const usuario = mockUsuarios.find(
-      u => u.email.toLowerCase() === email.trim().toLowerCase(),
-    );
-
-    // A senha não é verificada: o login é mockado por premissa do DRS.
-    if (!usuario) {
-      return delayErro('E-mail ou senha inválidos');
-    }
-
-    return delay({
-      token: `mock-token-${usuario.perfil.toLowerCase()}-${usuario.id}`,
-      usuario,
+  async login(payload: LoginPayload): Promise<LoginResponse> {
+    return api<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: payload,
     });
   },
 
-  /** Não há sessão no servidor para invalidar. */
   async logout(): Promise<void> {
-    return delay(undefined, 100);
+    // Não há sessão no servidor para invalidar: o JWT expira sozinho.
   },
 };
