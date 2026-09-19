@@ -4,40 +4,40 @@
  * O QUE FAZ: expõe o acesso aos dados cadastrais de cliente e às suas
  * transações.
  *
- * COMO FARÁ: `fetchClientes(filtros)` filtra `mockClientes` por qualquer
- * campo identificador, isolado ou combinado (RF0024).
- * `fetchClientePorId(id)` monta o detalhe agregando endereços, cartões e
- * pets dos respectivos mocks. `fetchTransacoesCliente(id)` devolve os
- * pedidos daquele cliente (RF0025). `criarCliente` gera o código único da
- * RNF0035 e o ranking inicial da RN0027; `alterarCliente` e
- * `inativarCliente` completam o CRUD.
+ * COMO FARÁ: cada função chama o endpoint correspondente da API pelo
+ * `api()`. `fetchClientes(filtros)` monta a query string com os campos
+ * preenchidos, combináveis entre si (RF0024), e devolve os itens da
+ * página. `fetchClientePorId(id)` traz o detalhe com endereços, cartões e
+ * pets (RF0022). `criarCliente` faz o autocadastro (RF0021);
+ * `alterarCliente` altera (RF0022); `inativarCliente` e `ativarCliente`
+ * mudam a situação (RF0023). O código único da RNF0035 e o ranking
+ * inicial da RN0027 são atribuídos pelo servidor.
  *
- * ATENDE: RF0021-RF0025, RNF0035
+ * O cadastro nunca é apagado: não existe função de exclusão aqui, porque
+ * não existe DELETE na API — a RF0023 manda inativar.
+ *
+ * ATENDE: RF0021-RF0025, RN0021, RN0022, RN0026, RN0027, RNF0035
  */
 
-import { mockCartoes } from '@/mock/cartoes/mock';
-import {
-  mockClientes,
-  proximoCodigoCliente,
-  proximoIdCliente,
-} from '@/mock/clientes/mock';
-import { mockEnderecos, proximoIdEndereco } from '@/mock/enderecos/mock';
 import { mockPedidos } from '@/mock/pedidos/mock';
-import { mockPets } from '@/mock/pets/mock';
-import { delay, delayErro } from '@/service/api/delay';
+import { api } from '@/service/api/request';
 import {
   AlterarClientePayload,
   Cliente,
-  ClienteBase,
   ClienteFiltros,
   CriarClientePayload,
   InativarClientePayload,
 } from '@/types/clientes/types';
+import { Pagina } from '@/types/common/types';
 import { Pedido } from '@/types/pedidos/types';
 
 /**
  * RN0027: o ranking sai do perfil de compras — quanto mais o cliente
  * gastou em compras efetivadas, maior a nota, de 1 a 5.
+ *
+ * PENDENTE: continua sobre `mockPedidos` porque a fatia de vendas ainda
+ * não existe na API. O back tem a mesma função em `clientesService`,
+ * esperando a tabela Pedido; quando ela chegar, esta sai daqui.
  */
 export const calcularRanking = (clienteId: number): number => {
   const efetivadas = mockPedidos.filter(
@@ -53,186 +53,83 @@ export const calcularRanking = (clienteId: number): number => {
   return 1;
 };
 
-/** Agrega ao registro-base as coleções que vivem nos seus próprios mocks. */
-const compor = (base: ClienteBase): Cliente => ({
-  ...base,
-  enderecos: mockEnderecos.filter(e => e.clienteId === base.id),
-  cartoes: mockCartoes.filter(c => c.clienteId === base.id),
-  pets: mockPets.filter(p => p.clienteId === base.id),
-});
+/** Só os filtros preenchidos entram na URL; os vazios sairiam como "". */
+const montarQuery = (filtros: ClienteFiltros): string => {
+  const params = new URLSearchParams();
 
-const apenasDigitos = (valor: string): string => valor.replace(/\D/g, '');
+  if (filtros.nome) params.set('nome', filtros.nome.trim());
+  if (filtros.codigo) params.set('codigo', filtros.codigo.trim());
+  if (filtros.cpf) params.set('cpf', filtros.cpf.trim());
+  if (filtros.email) params.set('email', filtros.email.trim());
+  if (filtros.genero) params.set('genero', filtros.genero);
+  if (filtros.rankingMinimo !== undefined) {
+    params.set('rankingMinimo', String(filtros.rankingMinimo));
+  }
+  if (filtros.ativo !== undefined) params.set('ativo', String(filtros.ativo));
+
+  // A consulta do administrador é uma tela única, sem paginação visível;
+  // 100 é o teto que a API aceita por página.
+  params.set('itensPorPagina', '100');
+
+  return params.toString();
+};
 
 export const clientesService = {
-  fetchClientes(filtros: ClienteFiltros = {}): Promise<Cliente[]> {
-    // RF0024: os campos preenchidos se combinam com AND entre si.
-    const resultado = mockClientes.filter(cliente => {
-      if (
-        filtros.nome &&
-        !cliente.nome.toLowerCase().includes(filtros.nome.trim().toLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        filtros.codigo &&
-        !cliente.codigo
-          .toLowerCase()
-          .includes(filtros.codigo.trim().toLowerCase())
-      ) {
-        return false;
-      }
-      if (
-        filtros.cpf &&
-        !apenasDigitos(cliente.cpf).includes(apenasDigitos(filtros.cpf))
-      ) {
-        return false;
-      }
-      if (
-        filtros.email &&
-        !cliente.email
-          .toLowerCase()
-          .includes(filtros.email.trim().toLowerCase())
-      ) {
-        return false;
-      }
-      if (filtros.genero && cliente.genero !== filtros.genero) return false;
-      if (
-        filtros.rankingMinimo !== undefined &&
-        cliente.ranking < filtros.rankingMinimo
-      ) {
-        return false;
-      }
-      if (filtros.ativo !== undefined && cliente.ativo !== filtros.ativo) {
-        return false;
-      }
+  /** RF0024: consulta por qualquer campo identificador, isolado ou combinado. */
+  async fetchClientes(filtros: ClienteFiltros = {}): Promise<Cliente[]> {
+    const pagina = await api<Pagina<Cliente>>(
+      `/clientes?${montarQuery(filtros)}`,
+    );
 
-      return true;
-    });
-
-    return delay(resultado.map(compor));
+    return pagina.itens;
   },
 
-  fetchClientePorId(id: number): Promise<Cliente> {
-    const cliente = mockClientes.find(c => c.id === id);
-
-    if (!cliente) {
-      return delayErro('Cliente não encontrado.');
-    }
-
-    return delay(compor(cliente));
+  /** RF0022: detalhe com endereços, cartões e pets. */
+  async fetchClientePorId(id: number): Promise<Cliente> {
+    return api<Cliente>(`/clientes/${id}`);
   },
 
   /** RF0025: todas as transações já realizadas pelo cliente. */
-  fetchTransacoesCliente(clienteId: number): Promise<Pedido[]> {
-    const pedidos = mockPedidos
-      .filter(p => p.clienteId === clienteId)
-      .sort((a, b) => b.dataCompra.localeCompare(a.dataCompra));
-
-    return delay(pedidos);
+  async fetchTransacoesCliente(clienteId: number): Promise<Pedido[]> {
+    return api<Pedido[]>(`/clientes/${clienteId}/transacoes`);
   },
 
-  criarCliente(payload: CriarClientePayload): Promise<Cliente> {
-    const cpfLimpo = apenasDigitos(payload.cpf);
-    const duplicado = mockClientes.some(c => apenasDigitos(c.cpf) === cpfLimpo);
+  /** RF0021: autocadastro, com os dois endereços da RN0021/RN0022. */
+  async criarCliente(payload: CriarClientePayload): Promise<Cliente> {
+    return api<Cliente>('/clientes', { method: 'POST', body: payload });
+  },
 
-    if (duplicado) {
-      return delayErro('Já existe um cliente cadastrado com este CPF.');
-    }
+  /** RF0022: alteração dos dados cadastrais. */
+  async alterarCliente(payload: AlterarClientePayload): Promise<Cliente> {
+    const { id, ...dados } = payload;
 
-    const id = proximoIdCliente();
+    return api<Cliente>(`/clientes/${id}`, { method: 'PUT', body: dados });
+  },
 
-    const cliente: ClienteBase = {
-      id,
-      // RNF0035: código único gerado pelo sistema.
-      codigo: proximoCodigoCliente(),
-      nome: payload.nome,
-      genero: payload.genero,
-      dataNascimento: payload.dataNascimento,
-      cpf: payload.cpf,
-      email: payload.email,
-      telefone: payload.telefone,
-      // RN0027: sem histórico de compras, o cliente entra no menor ranking.
-      ranking: 1,
-      ativo: true,
-    };
-
-    mockClientes.push(cliente);
-
-    // RN0021/RN0022: os dois endereços obrigatórios entram junto com o
-    // cadastro, cada um com o seu tipo.
-    mockEnderecos.push({
-      ...payload.enderecoCobranca,
-      id: proximoIdEndereco(),
-      clienteId: id,
-      tipo: 'COBRANCA',
+  /** RF0023: inativa sem apagar, registrando a justificativa. */
+  async inativarCliente(payload: InativarClientePayload): Promise<Cliente> {
+    return api<Cliente>(`/clientes/${payload.id}/situacao`, {
+      method: 'PATCH',
+      body: { ativo: false, justificativa: payload.justificativa },
     });
-    mockEnderecos.push({
-      ...payload.enderecoEntrega,
-      id: proximoIdEndereco(),
-      clienteId: id,
-      tipo: 'ENTREGA',
+  },
+
+  /** RF0023: reativa o cadastro, também com justificativa registrada. */
+  async ativarCliente(payload: InativarClientePayload): Promise<Cliente> {
+    return api<Cliente>(`/clientes/${payload.id}/situacao`, {
+      method: 'PATCH',
+      body: { ativo: true, justificativa: payload.justificativa },
     });
-
-    return delay(compor(cliente));
   },
 
-  alterarCliente(payload: AlterarClientePayload): Promise<Cliente> {
-    const indice = mockClientes.findIndex(c => c.id === payload.id);
-
-    if (indice < 0) {
-      return delayErro('Cliente não encontrado.');
-    }
-
-    mockClientes[indice] = { ...mockClientes[indice], ...payload };
-
-    return delay(compor(mockClientes[indice]));
-  },
-
-  inativarCliente(payload: InativarClientePayload): Promise<Cliente> {
-    const indice = mockClientes.findIndex(c => c.id === payload.id);
-
-    if (indice < 0) {
-      return delayErro('Cliente não encontrado.');
-    }
-
-    mockClientes[indice] = {
-      ...mockClientes[indice],
-      ativo: false,
-      justificativaInativacao: payload.justificativa,
-    };
-
-    return delay(compor(mockClientes[indice]));
-  },
-
-  ativarCliente(id: number): Promise<Cliente> {
-    const indice = mockClientes.findIndex(c => c.id === id);
-
-    if (indice < 0) {
-      return delayErro('Cliente não encontrado.');
-    }
-
-    mockClientes[indice] = {
-      ...mockClientes[indice],
-      ativo: true,
-      justificativaInativacao: undefined,
-    };
-
-    return delay(compor(mockClientes[indice]));
-  },
-
-  /** RN0027: reavalia o ranking após uma compra ser efetivada. */
-  atualizarRanking(clienteId: number): Promise<Cliente> {
-    const indice = mockClientes.findIndex(c => c.id === clienteId);
-
-    if (indice < 0) {
-      return delayErro('Cliente não encontrado.');
-    }
-
-    mockClientes[indice] = {
-      ...mockClientes[indice],
-      ranking: calcularRanking(clienteId),
-    };
-
-    return delay(compor(mockClientes[indice]), 100);
+  /**
+   * RN0027: reavalia o ranking após uma compra ser efetivada.
+   *
+   * PENDENTE: a API ainda não expõe rota para isto — o service do back tem
+   * a regra, mas ela depende da tabela Pedido. Enquanto o checkout também
+   * é mockado, o cálculo fica aqui e não viaja para o servidor.
+   */
+  async atualizarRanking(clienteId: number): Promise<number> {
+    return calcularRanking(clienteId);
   },
 };

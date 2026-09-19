@@ -7,7 +7,12 @@
  * código, nome, CPF, e-mail, ranking e situação, com ação de inativar e
  * link para o detalhe.
  *
- * ATENDE: RF0023, RF0024, RN0027, RNF0035
+ * A mudança de situação passa pelo ConfirmarSituacaoCliente, que colhe a
+ * justificativa gravada junto com o registro (RNF0012). O cadastro nunca é
+ * excluído: a RF0023 manda inativar, e não há ação de exclusão nesta tela
+ * nem rota para ela na API.
+ *
+ * ATENDE: RF0023, RF0024, RN0027, RNF0012, RNF0035
  */
 
 'use client';
@@ -17,11 +22,12 @@ import { useRouter } from 'next/navigation';
 import { FiEye, FiPower } from 'react-icons/fi';
 
 import SearchInput from '@/components/Inputs/SearchInput/input';
+import ConfirmarSituacaoCliente from '@/components/Modals/ConfirmarSituacaoCliente';
 import TabelaSkeleton from '@/components/skeletons/TabelaSkeleton';
 import { faixaDoRanking } from '@/controllers/clientes/useClienteController';
 import { useClientesController } from '@/controllers/clientes/useClientesController';
 import { useDebounce } from '@/hooks/useDebounce';
-import { ClienteFiltros, Genero } from '@/types/clientes/types';
+import { Cliente, ClienteFiltros, Genero } from '@/types/clientes/types';
 
 import * as S from './styles';
 
@@ -47,6 +53,22 @@ const AdminClientes = () => {
 
   const { clientes, total, inativar, ativar, isPending, isLoading } =
     useClientesController(filtros);
+
+  // Quem está selecionado para mudar de situação; undefined = modal fechado.
+  const [emSituacao, setEmSituacao] = useState<Cliente>();
+
+  const confirmarSituacao = (justificativa: string) => {
+    if (!emSituacao) return;
+
+    const payload = { id: emSituacao.id, justificativa };
+    const aoTerminar = { onSuccess: () => setEmSituacao(undefined) };
+
+    if (emSituacao.ativo) {
+      inativar(payload, aoTerminar);
+    } else {
+      ativar(payload, aoTerminar);
+    }
+  };
 
   return (
     <S.Container>
@@ -174,17 +196,7 @@ const AdminClientes = () => {
                             ? `Inativar ${cliente.nome}`
                             : `Reativar ${cliente.nome}`
                         }
-                        onClick={() => {
-                          if (cliente.ativo) {
-                            inativar({
-                              id: cliente.id,
-                              justificativa:
-                                'Inativação solicitada pelo administrador.',
-                            });
-                          } else {
-                            ativar(cliente.id);
-                          }
-                        }}
+                        onClick={() => setEmSituacao(cliente)}
                       >
                         <FiPower size={16} />
                       </S.BotaoIcone>
@@ -196,6 +208,14 @@ const AdminClientes = () => {
           </S.Tabela>
         </S.TabelaWrapper>
       )}
+      <ConfirmarSituacaoCliente
+        aberto={!!emSituacao}
+        onClose={() => setEmSituacao(undefined)}
+        cliente={emSituacao}
+        acao={emSituacao?.ativo ? 'INATIVAR' : 'REATIVAR'}
+        onConfirmar={confirmarSituacao}
+        isPending={isPending}
+      />
     </S.Container>
   );
 };

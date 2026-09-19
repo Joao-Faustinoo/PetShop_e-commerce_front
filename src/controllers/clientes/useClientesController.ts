@@ -66,7 +66,8 @@ export const useClientesController = (filtros: ClienteFiltros = {}) => {
   });
 
   const { mutate: ativar, isPending: ativando } = useMutation({
-    mutationFn: (id: number) => clientesService.ativarCliente(id),
+    mutationFn: (payload: InativarClientePayload) =>
+      clientesService.ativarCliente(payload),
     onSuccess: cliente => {
       registrar({
         entidade: 'Cliente',
