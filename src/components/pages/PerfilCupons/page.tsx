@@ -58,7 +58,7 @@ const PerfilCupons = () => {
 
   const { data: cupons = [], isLoading } = useQuery({
     queryKey: ['cupons', clienteId, 'todos'],
-    queryFn: () => cuponsService.fetchCuponsPorCliente(clienteId as number),
+    queryFn: () => cuponsService.fetchCuponsPorCliente(),
     enabled: !!clienteId,
   });
 

@@ -7,7 +7,11 @@
  * linha mostra número, data, total e um badge de status. Só pedidos
  * ENTREGUE oferecem o atalho de solicitar troca (RN0043).
  *
- * ATENDE: RF0025, RF0041, RN0043
+ * No topo ficam os avisos ainda não lidos — é aqui que o cliente RECEBE a
+ * notificação de que a troca foi autorizada (RNF0046), em vez de precisar
+ * perceber sozinho que o status mudou.
+ *
+ * ATENDE: RF0025, RF0041, RN0043, RNF0046
  */
 
 'use client';
@@ -20,6 +24,7 @@ import SecondaryButton from '@/components/Buttons/Secondary/button';
 import PedidoCard from '@/components/Cards/PedidoCard';
 import SolicitarTroca from '@/components/Modals/SolicitarTroca';
 import TabelaSkeleton from '@/components/skeletons/TabelaSkeleton';
+import { useNotificacoesController } from '@/controllers/notificacoes/useNotificacoesController';
 import { usePedidosController } from '@/controllers/pedidos/usePedidosController';
 import { Pedido, ROTULO_STATUS, StatusPedido } from '@/types/pedidos/types';
 
@@ -35,6 +40,7 @@ const MeusPedidos = () => {
   const { pedidos, isLoading } = usePedidosController(
     status ? { status: status as StatusPedido } : {},
   );
+  const { naoLidas, marcarComoLida } = useNotificacoesController();
 
   return (
     <S.Container>
@@ -44,6 +50,20 @@ const MeusPedidos = () => {
           <p>Acompanhe suas compras e solicite trocas</p>
         </S.Titulo>
       </S.Cabecalho>
+
+      {/* RNF0046: a autorização da troca chega como aviso ao cliente. */}
+      {naoLidas.length > 0 && (
+        <S.Avisos data-cy="notificacoes">
+          {naoLidas.map(aviso => (
+            <S.Aviso key={aviso.id}>
+              <span>{aviso.mensagem}</span>
+              <button type="button" onClick={() => marcarComoLida(aviso.id)}>
+                Marcar como lida
+              </button>
+            </S.Aviso>
+          ))}
+        </S.Avisos>
+      )}
 
       <S.Filtros $colunas={4}>
         <S.CampoFiltro>

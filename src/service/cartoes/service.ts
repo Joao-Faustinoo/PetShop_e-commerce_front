@@ -1,106 +1,48 @@
 /**
- * [MODEL] Service de cartões de crédito
+ * [MODEL] Service de cartões
  *
- * O QUE FAZ: expõe o CRUD dos cartões salvos no perfil do cliente.
+ * O QUE FAZ: lista os cartões do cliente e incorpora um novo ao perfil.
  *
- * COMO FARÁ: `fetchCartoesPorCliente(clienteId)`, `criarCartao`,
- * `alterarCartao`, `removerCartao` e `definirPreferencial(cartaoId)` —
- * esta última desmarca os demais cartões do cliente antes de marcar o
- * novo, garantindo o cartão preferencial único da RF0027.
+ * COMO FARÁ: cada função chama o endpoint correspondente. O número e o
+ * código de segurança nunca chegam inteiros ao navegador: a API devolve
+ * apenas os quatro últimos dígitos, que é o que o cliente usa para
+ * reconhecer o cartão.
  *
- * ATENDE: RF0027, RF0036
+ * ATENDE: RF0027, RF0036, RN0024, RN0025
  */
 
-import { mockCartoes, proximoIdCartao } from '@/mock/cartoes/mock';
-import { mockBandeiras } from '@/mock/dominios/mock';
-import { delay, delayErro } from '@/service/api/delay';
+import { api } from '@/service/api/request';
 import {
   AlterarCartaoPayload,
   Cartao,
   CriarCartaoPayload,
 } from '@/types/cartoes/types';
 
-/** Deixa exatamente um cartão do cliente marcado como preferencial. */
-const marcarPreferencialUnico = (clienteId: number, cartaoId: number): void => {
-  mockCartoes.forEach((cartao, indice) => {
-    if (cartao.clienteId !== clienteId) return;
-
-    mockCartoes[indice] = { ...cartao, preferencial: cartao.id === cartaoId };
-  });
-};
-
 export const cartoesService = {
-  fetchCartoesPorCliente(clienteId: number): Promise<Cartao[]> {
-    return delay(mockCartoes.filter(c => c.clienteId === clienteId));
+  /** O cliente é o da sessão; o id não viaja. */
+  async fetchCartoesPorCliente(): Promise<Cartao[]> {
+    return api<Cartao[]>('/cartoes');
   },
 
-  criarCartao(payload: CriarCartaoPayload): Promise<Cartao> {
-    // RN0025: a bandeira precisa estar registrada no sistema.
-    const bandeiraValida = mockBandeiras.some(b => b.id === payload.bandeiraId);
-
-    if (!bandeiraValida) {
-      return delayErro('Bandeira de cartão não registrada no sistema.');
-    }
-
-    const cartao: Cartao = { ...payload, id: proximoIdCartao() };
-    mockCartoes.push(cartao);
-
-    const primeiroDoCliente =
-      mockCartoes.filter(c => c.clienteId === cartao.clienteId).length === 1;
-
-    // RF0027: o primeiro cartão do cliente já nasce preferencial.
-    if (cartao.preferencial || primeiroDoCliente) {
-      marcarPreferencialUnico(cartao.clienteId, cartao.id);
-    }
-
-    return delay(mockCartoes.find(c => c.id === cartao.id)!);
+  /** RF0036: cartão novo incorporado ao perfil, para poder pagar com ele. */
+  async criarCartao(payload: CriarCartaoPayload): Promise<Cartao> {
+    return api<Cartao>('/cartoes', { method: 'POST', body: payload });
   },
 
-  alterarCartao(payload: AlterarCartaoPayload): Promise<Cartao> {
-    const indice = mockCartoes.findIndex(c => c.id === payload.id);
+  async alterarCartao(payload: AlterarCartaoPayload): Promise<Cartao> {
+    const { id, ...dados } = payload;
 
-    if (indice < 0) {
-      return delayErro('Cartão não encontrado.');
-    }
-
-    mockCartoes[indice] = { ...mockCartoes[indice], ...payload };
-
-    if (payload.preferencial) {
-      marcarPreferencialUnico(payload.clienteId, payload.id);
-    }
-
-    return delay(mockCartoes[indice]);
+    return api<Cartao>(`/cartoes/${id}`, { method: 'PUT', body: dados });
   },
 
-  removerCartao(id: number): Promise<void> {
-    const indice = mockCartoes.findIndex(c => c.id === id);
-
-    if (indice < 0) {
-      return delayErro('Cartão não encontrado.');
-    }
-
-    const { clienteId, preferencial } = mockCartoes[indice];
-    mockCartoes.splice(indice, 1);
-
-    // RF0027: se o preferencial saiu, promove o próximo cartão do cliente.
-    if (preferencial) {
-      const proximo = mockCartoes.find(c => c.clienteId === clienteId);
-
-      if (proximo) marcarPreferencialUnico(clienteId, proximo.id);
-    }
-
-    return delay(undefined);
+  async removerCartao(id: number): Promise<void> {
+    await api<void>(`/cartoes/${id}`, { method: 'DELETE' });
   },
 
-  definirPreferencial(cartaoId: number): Promise<Cartao> {
-    const cartao = mockCartoes.find(c => c.id === cartaoId);
-
-    if (!cartao) {
-      return delayErro('Cartão não encontrado.');
-    }
-
-    marcarPreferencialUnico(cartao.clienteId, cartaoId);
-
-    return delay(mockCartoes.find(c => c.id === cartaoId)!);
+  /** Um preferencial por cliente: o novo destrona o anterior. */
+  async definirPreferencial(cartaoId: number): Promise<Cartao> {
+    return api<Cartao>(`/cartoes/${cartaoId}/preferencial`, {
+      method: 'PATCH',
+    });
   },
 };

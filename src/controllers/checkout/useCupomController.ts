@@ -32,7 +32,7 @@ export const useCupomController = (
 
   const { data: disponiveis = [], isLoading } = useQuery({
     queryKey: ['cupons', clienteId],
-    queryFn: () => cuponsService.fetchCuponsDisponiveis(clienteId as number),
+    queryFn: () => cuponsService.fetchCuponsDisponiveis(),
     enabled: !!clienteId,
   });
 
@@ -92,7 +92,6 @@ export const useCupomController = (
 
       const { valido, motivo, cupom } = await cuponsService.validarCupom(
         codigo,
-        clienteId,
       );
 
       if (!valido || !cupom) {

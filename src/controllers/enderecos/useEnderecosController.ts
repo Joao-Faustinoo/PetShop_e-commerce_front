@@ -37,7 +37,7 @@ export const useEnderecosController = (clienteId?: number) => {
   } = useQuery({
     queryKey: ['enderecos', clienteId],
     queryFn: () =>
-      enderecosService.fetchEnderecosPorCliente(clienteId as number),
+      enderecosService.fetchEnderecosPorCliente(),
     enabled: !!clienteId,
   });
 

@@ -1,83 +1,52 @@
 /**
  * [MODEL] Service de endereços
  *
- * O QUE FAZ: expõe o CRUD dos endereços de entrega e cobrança do cliente,
- * de forma independente dos demais dados cadastrais.
+ * O QUE FAZ: lista os endereços do cliente e incorpora um novo ao perfil.
  *
- * COMO FARÁ: `fetchEnderecosPorCliente(clienteId)`, `criarEndereco`,
- * `alterarEndereco` e `removerEndereco` operam direto sobre
- * `mockEnderecos`. A separação em service próprio é o que permite à
- * RNF0034 alterar ou adicionar endereço sem tocar no cadastro do cliente.
+ * COMO FARÁ: cada função chama o endpoint correspondente. O endereço
+ * usado numa compra precisa existir no cadastro, porque o pedido aponta
+ * para ele — é por isso que o "novo endereço" do checkout é gravado antes
+ * de a compra fechar.
  *
- * ATENDE: RF0026, RF0035, RNF0034
+ * ATENDE: RF0026, RF0035, RN0023, RNF0034
  */
 
-import { mockEnderecos, proximoIdEndereco } from '@/mock/enderecos/mock';
-import { delay, delayErro } from '@/service/api/delay';
+import { api } from '@/service/api/request';
 import {
   AlterarEnderecoPayload,
   CriarEnderecoPayload,
   Endereco,
+  TipoEndereco,
 } from '@/types/enderecos/types';
 
 export const enderecosService = {
-  fetchEnderecosPorCliente(clienteId: number): Promise<Endereco[]> {
-    return delay(mockEnderecos.filter(e => e.clienteId === clienteId));
+  /** O cliente é o da sessão; o id não viaja. */
+  async fetchEnderecosPorCliente(tipo?: TipoEndereco): Promise<Endereco[]> {
+    return api<Endereco[]>(`/enderecos${tipo ? `?tipo=${tipo}` : ''}`);
   },
 
-  fetchEnderecoPorId(id: number): Promise<Endereco> {
-    const endereco = mockEnderecos.find(e => e.id === id);
+  async fetchEnderecoPorId(id: number): Promise<Endereco> {
+    const todos = await this.fetchEnderecosPorCliente();
+    const endereco = todos.find(e => e.id === id);
 
-    if (!endereco) {
-      return delayErro('Endereço não encontrado.');
-    }
+    if (!endereco) throw new Error('Endereço não encontrado.');
 
-    return delay(endereco);
+    return endereco;
   },
 
-  criarEndereco(payload: CriarEnderecoPayload): Promise<Endereco> {
-    const endereco: Endereco = { ...payload, id: proximoIdEndereco() };
-    mockEnderecos.push(endereco);
-
-    return delay(endereco);
+  /** RF0035 e RNF0034: acrescenta sem mexer no resto do cadastro. */
+  async criarEndereco(payload: CriarEnderecoPayload): Promise<Endereco> {
+    return api<Endereco>('/enderecos', { method: 'POST', body: payload });
   },
 
-  alterarEndereco(payload: AlterarEnderecoPayload): Promise<Endereco> {
-    const indice = mockEnderecos.findIndex(e => e.id === payload.id);
+  async alterarEndereco(payload: AlterarEnderecoPayload): Promise<Endereco> {
+    const { id, ...dados } = payload;
 
-    if (indice < 0) {
-      return delayErro('Endereço não encontrado.');
-    }
-
-    mockEnderecos[indice] = { ...mockEnderecos[indice], ...payload };
-
-    return delay(mockEnderecos[indice]);
+    return api<Endereco>(`/enderecos/${id}`, { method: 'PUT', body: dados });
   },
 
-  removerEndereco(id: number): Promise<void> {
-    const indice = mockEnderecos.findIndex(e => e.id === id);
-
-    if (indice < 0) {
-      return delayErro('Endereço não encontrado.');
-    }
-
-    const alvo = mockEnderecos[indice];
-    const doMesmoTipo = mockEnderecos.filter(
-      e => e.clienteId === alvo.clienteId && e.tipo === alvo.tipo,
-    );
-
-    // RN0021/RN0022: o cliente não pode ficar sem endereço de cobrança
-    // nem sem endereço de entrega.
-    if (doMesmoTipo.length <= 1) {
-      const rotulo = alvo.tipo === 'COBRANCA' ? 'cobrança' : 'entrega';
-
-      return delayErro(
-        `É obrigatório manter ao menos um endereço de ${rotulo} no cadastro.`,
-      );
-    }
-
-    mockEnderecos.splice(indice, 1);
-
-    return delay(undefined);
+  /** RN0021/RN0022: a API recusa deixar o cliente sem um dos tipos. */
+  async removerEndereco(id: number): Promise<void> {
+    await api<void>(`/enderecos/${id}`, { method: 'DELETE' });
   },
 };

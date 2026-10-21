@@ -18,14 +18,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
-import { useAuth } from '@/hooks/useAuth';
 import { pedidosService } from '@/service/pedidos/service';
 import { Pedido, ROTULO_STATUS, StatusPedido } from '@/types/pedidos/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useStatusPedidoController = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { registrar } = useLogTransacaoController();
 
   /**
@@ -45,7 +43,7 @@ export const useStatusPedidoController = () => {
       );
     }
 
-    return pedidosService.atualizarStatus(pedido.id, destino, user?.id ?? 0);
+    return pedidosService.atualizarStatus(pedido.id, destino);
   };
 
   const aoConcluir = (pedido: Pedido, anterior: StatusPedido) => {

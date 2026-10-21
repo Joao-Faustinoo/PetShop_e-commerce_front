@@ -18,15 +18,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
-import { useAuth } from '@/hooks/useAuth';
-import { pedidosService } from '@/service/pedidos/service';
 import { trocasService } from '@/service/trocas/service';
 import { SolicitarTrocaPayload } from '@/types/trocas/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useSolicitarTrocaController = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { registrar } = useLogTransacaoController();
 
   const { mutate: solicitarTroca, isPending } = useMutation({
@@ -35,26 +32,12 @@ export const useSolicitarTrocaController = () => {
         throw new Error('Descreva o motivo da troca.');
       }
 
-      // RN0043: o service recusa pedido que não esteja ENTREGUE.
-      const troca = await trocasService.solicitarTroca(payload);
-
-      // RN0041: os itens ficam marcados como EM_TROCA no pedido; se a
-      // troca cobre a compra inteira, o próprio pedido muda de status.
-      await pedidosService.marcarItensEmTroca(
-        payload.pedidoId,
-        payload.itens.map(i => i.produtoId),
-        'EM_TROCA',
-      );
-
-      if (troca.trocaTotal) {
-        await pedidosService.atualizarStatus(
-          payload.pedidoId,
-          'EM_TROCA',
-          user?.id ?? 0,
-        );
-      }
-
-      return troca;
+      /**
+       * RN0043: a API recusa pedido que não esteja ENTREGUE. RN0041: ela
+       * registra a solicitação e leva a compra a EM TROCA no mesmo ato —
+       * são partes do mesmo registro, e não chamadas separadas.
+       */
+      return trocasService.solicitarTroca(payload);
     },
     onSuccess: troca => {
       registrar({

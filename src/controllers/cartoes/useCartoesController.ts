@@ -34,7 +34,7 @@ export const useCartoesController = (clienteId?: number) => {
     isError,
   } = useQuery({
     queryKey: ['cartoes', clienteId],
-    queryFn: () => cartoesService.fetchCartoesPorCliente(clienteId as number),
+    queryFn: () => cartoesService.fetchCartoesPorCliente(),
     enabled: !!clienteId,
   });
 

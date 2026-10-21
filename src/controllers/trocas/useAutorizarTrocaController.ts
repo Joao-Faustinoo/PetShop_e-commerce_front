@@ -17,36 +17,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 
 import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
-import { useAuth } from '@/hooks/useAuth';
-import { pedidosService } from '@/service/pedidos/service';
 import { trocasService } from '@/service/trocas/service';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useAutorizarTrocaController = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { registrar } = useLogTransacaoController();
 
   const { mutate: autorizarTroca, isPending } = useMutation({
     mutationFn: async (trocaId: number) => {
-      const troca = await trocasService.autorizarTroca(trocaId);
-
-      await pedidosService.marcarItensEmTroca(
-        troca.pedidoId,
-        troca.itens.map(i => i.produtoId),
-        'TROCA_AUTORIZADA',
-      );
-
-      // Quando a troca cobre a compra inteira, o pedido acompanha.
-      if (troca.trocaTotal) {
-        await pedidosService.atualizarStatus(
-          troca.pedidoId,
-          'TROCA_AUTORIZADA',
-          user?.id ?? 0,
-        );
-      }
-
-      return troca;
+      /**
+       * RF0042: a API leva troca e compra a TROCA AUTORIZADA e cria a
+       * notificação do cliente (RNF0046) no mesmo ato.
+       */
+      return trocasService.autorizarTroca(trocaId);
     },
     onSuccess: troca => {
       registrar({

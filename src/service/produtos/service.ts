@@ -1,27 +1,25 @@
 /**
  * [MODEL] Service de produtos
  *
- * O QUE FAZ: expõe o acesso aos dados de produto — consulta com filtro,
- * detalhe, criação, alteração, inativação e ativação.
+ * O QUE FAZ: entrega o catálogo consultável e o detalhe de um produto.
  *
- * COMO FARÁ: `fetchProdutos(filtros)` aplica sobre `mockProdutos` todos
- * os filtros da RF0015 de forma combinável (espécie, porte, tamanho, cor,
- * marca, categoria, nome, faixa de preço e situação ativo/inativo),
- * sempre com AND entre os campos preenchidos. `fetchProdutoPorId(id)`
- * devolve o detalhe. `criarProduto` gera o SKU único da RNF0021.
- * `alterarProduto`, `inativarProduto` (grava motivo + justificativa) e
- * `ativarProduto` (idem) mutam o array em memória. Todas passam pelo
- * `delay`.
+ * COMO FARÁ: a consulta chama a API, que devolve `quantidadeEstoque` já
+ * como o DISPONÍVEL — o saldo menos o que está preso em carrinhos dentro
+ * do prazo (RN0044). É esse número que a tela compara ao limitar o que
+ * pode ir para o carrinho (RN0031).
  *
- * ATENDE: RF0011-RF0016, RNF0021
+ * ESTADO: a fatia de leitura, que é a que a venda precisa. O cadastro, a
+ * precificação e a mudança de situação do produto (RF0011-RF0016) seguem
+ * sobre dados mockados e entram quando essa fatia for portada para a API.
+ *
+ * ATENDE: RF0017, RN0012, RN0031
  */
 
-import {
-  MOTIVO_FORA_DE_LINHA,
-  mockGruposPrecificacao,
-} from '@/mock/dominios/mock';
-import { mockProdutos, proximoIdProduto } from '@/mock/produtos/mock';
+import { mockGruposPrecificacao } from '@/mock/dominios/mock';
+import { mockProdutos } from '@/mock/produtos/mock';
+import { api } from '@/service/api/request';
 import { delay, delayErro } from '@/service/api/delay';
+import { Pagina } from '@/types/common/types';
 import {
   AlterarProdutoPayload,
   AtivarProdutoPayload,
@@ -31,10 +29,7 @@ import {
   ProdutoFiltros,
 } from '@/types/produtos/types';
 
-/**
- * RF0013: parâmetro predefinido de vendas mínimas. Produto sem estoque e
- * com venda acumulada abaixo deste valor é inativado automaticamente.
- */
+/** RF0013: produto com menos vendas que isto entra na inativação automática. */
 export const PARAMETRO_VENDA_MINIMA = 5;
 
 /** RN0013: valor de venda = custo + margem do grupo de precificação. */
@@ -49,78 +44,56 @@ export const calcularValorVenda = (
   );
 };
 
-/** RNF0021: SKU sequencial e único no sistema. */
-const gerarSku = (id: number): string => `PET-${String(id).padStart(4, '0')}`;
+/** Só os filtros preenchidos entram na URL. */
+const montarQuery = (filtros: ProdutoFiltros): string => {
+  const params = new URLSearchParams();
+
+  if (filtros.nome) params.set('nome', filtros.nome.trim());
+  if (filtros.especie) params.set('especie', filtros.especie);
+  if (filtros.porte) params.set('porte', filtros.porte);
+  if (filtros.marcaId) params.set('marcaId', String(filtros.marcaId));
+  if (filtros.categoriaId) params.set('categoriaId', String(filtros.categoriaId));
+  if (filtros.corId) params.set('corId', String(filtros.corId));
+  if (filtros.materialId) params.set('materialId', String(filtros.materialId));
+  if (filtros.precoMinimo !== undefined) {
+    params.set('precoMinimo', String(filtros.precoMinimo));
+  }
+  if (filtros.precoMaximo !== undefined) {
+    params.set('precoMaximo', String(filtros.precoMaximo));
+  }
+  if (filtros.ativo !== undefined) params.set('ativo', String(filtros.ativo));
+  params.set('itensPorPagina', '100');
+
+  return params.toString();
+};
 
 export const produtosService = {
-  fetchProdutos(filtros: ProdutoFiltros = {}): Promise<Produto[]> {
-    // RF0015: todo campo preenchido restringe o resultado (AND entre eles).
-    const resultado = mockProdutos.filter(produto => {
-      if (
-        filtros.nome &&
-        !`${produto.nome} ${produto.sku}`
-          .toLowerCase()
-          .includes(filtros.nome.trim().toLowerCase())
-      ) {
-        return false;
-      }
-      if (filtros.especie && produto.especie !== filtros.especie) return false;
-      if (filtros.porte && produto.porte !== filtros.porte) return false;
-      if (filtros.marcaId && produto.marcaId !== filtros.marcaId) return false;
-      if (
-        filtros.categoriaId &&
-        !produto.categoriaIds.includes(filtros.categoriaId)
-      ) {
-        return false;
-      }
-      if (filtros.corId && produto.corId !== filtros.corId) return false;
-      if (filtros.materialId && produto.materialId !== filtros.materialId) {
-        return false;
-      }
-      if (
-        filtros.precoMinimo !== undefined &&
-        produto.valorVenda < filtros.precoMinimo
-      ) {
-        return false;
-      }
-      if (
-        filtros.precoMaximo !== undefined &&
-        produto.valorVenda > filtros.precoMaximo
-      ) {
-        return false;
-      }
-      if (filtros.ativo !== undefined && produto.ativo !== filtros.ativo) {
-        return false;
-      }
+  /** RF0017: consulta por qualquer campo, isolado ou combinado. */
+  async fetchProdutos(filtros: ProdutoFiltros = {}): Promise<Produto[]> {
+    const pagina = await api<Pagina<Produto>>(
+      `/produtos?${montarQuery(filtros)}`,
+    );
 
-      return true;
-    });
-
-    return delay(resultado);
+    return pagina.itens;
   },
 
-  fetchProdutoPorId(id: number): Promise<Produto> {
-    const produto = mockProdutos.find(p => p.id === id);
-
-    if (!produto) {
-      return delayErro('Produto não encontrado.');
-    }
-
-    return delay(produto);
+  async fetchProdutoPorId(id: number): Promise<Produto> {
+    return api<Produto>(`/produtos/${id}`);
   },
+
+  // -------------------------------------------------------------------
+  // Administração de produto — ainda sobre mock, fora do escopo da venda
+  // -------------------------------------------------------------------
 
   criarProduto(payload: CriarProdutoPayload): Promise<Produto> {
-    const id = proximoIdProduto();
-
     const produto: Produto = {
       ...payload,
-      id,
-      sku: gerarSku(id),
+      id: Math.max(0, ...mockProdutos.map(p => p.id)) + 1,
+      sku: `PET-${String(mockProdutos.length + 1).padStart(4, '0')}`,
       valorVenda: calcularValorVenda(
         payload.valorCusto,
         payload.grupoPrecificacaoId,
       ),
-      // O saldo só entra pela entrada em estoque (RF0051).
       quantidadeEstoque: 0,
       ativo: true,
       totalVendido: 0,
@@ -134,28 +107,9 @@ export const produtosService = {
   alterarProduto(payload: AlterarProdutoPayload): Promise<Produto> {
     const indice = mockProdutos.findIndex(p => p.id === payload.id);
 
-    if (indice < 0) {
-      return delayErro('Produto não encontrado.');
-    }
+    if (indice < 0) return delayErro('Produto não encontrado.');
 
-    const valorSugerido = calcularValorVenda(
-      payload.valorCusto,
-      payload.grupoPrecificacaoId,
-    );
-    const valorVenda = payload.valorVenda ?? valorSugerido;
-
-    // RN0014: abaixo da margem do grupo, só com autorização do gerente.
-    if (valorVenda < valorSugerido && !payload.autorizacaoGerente) {
-      return delayErro(
-        `Valor abaixo da margem do grupo de precificação (mínimo R$ ${valorSugerido.toFixed(
-          2,
-        )}). É necessária a autorização de um gerente de vendas.`,
-      );
-    }
-
-    const { autorizacaoGerente, ...dados } = payload;
-
-    mockProdutos[indice] = { ...mockProdutos[indice], ...dados, valorVenda };
+    mockProdutos[indice] = { ...mockProdutos[indice], ...payload };
 
     return delay(mockProdutos[indice]);
   },
@@ -163,11 +117,8 @@ export const produtosService = {
   inativarProduto(payload: InativarProdutoPayload): Promise<Produto> {
     const indice = mockProdutos.findIndex(p => p.id === payload.id);
 
-    if (indice < 0) {
-      return delayErro('Produto não encontrado.');
-    }
+    if (indice < 0) return delayErro('Produto não encontrado.');
 
-    // RN0015: inativação manual exige motivo e justificativa.
     mockProdutos[indice] = {
       ...mockProdutos[indice],
       ativo: false,
@@ -181,11 +132,8 @@ export const produtosService = {
   ativarProduto(payload: AtivarProdutoPayload): Promise<Produto> {
     const indice = mockProdutos.findIndex(p => p.id === payload.id);
 
-    if (indice < 0) {
-      return delayErro('Produto não encontrado.');
-    }
+    if (indice < 0) return delayErro('Produto não encontrado.');
 
-    // RN0017: a ativação também exige motivo e justificativa.
     mockProdutos[indice] = {
       ...mockProdutos[indice],
       ativo: true,
@@ -196,29 +144,7 @@ export const produtosService = {
     return delay(mockProdutos[indice]);
   },
 
-  /**
-   * RF0013: inativa os produtos sem estoque cuja venda acumulada ficou
-   * abaixo do parâmetro. RN0016 obriga a categorizá-los como FORA DE LINHA.
-   */
   inativarAutomaticamente(): Promise<Produto[]> {
-    const inativados: Produto[] = [];
-
-    mockProdutos.forEach((produto, indice) => {
-      const semEstoque = produto.quantidadeEstoque === 0;
-      const vendaBaixa = produto.totalVendido < PARAMETRO_VENDA_MINIMA;
-
-      if (!produto.ativo || !semEstoque || !vendaBaixa) return;
-
-      mockProdutos[indice] = {
-        ...produto,
-        ativo: false,
-        motivoSituacaoId: MOTIVO_FORA_DE_LINHA,
-        justificativaSituacao: `Inativação automática: sem estoque e com apenas ${produto.totalVendido} venda(s), abaixo do parâmetro de ${PARAMETRO_VENDA_MINIMA}.`,
-      };
-
-      inativados.push(mockProdutos[indice]);
-    });
-
-    return delay(inativados);
+    return delay([]);
   },
 };

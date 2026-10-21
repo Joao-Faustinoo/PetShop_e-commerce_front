@@ -7,11 +7,13 @@
  * COMO FARÁ: mantém o estado das etapas e delega cada uma ao seu
  * controller (`useFreteController`, `usePagamentoController`,
  * `useCupomController`). Só libera a finalização quando houver endereço
- * de entrega e forma de pagamento cobrindo o total. A `useMutation` de
- * `finalizarCompra` cria o pedido em EM_PROCESSAMENTO (RF0038), invalida
- * ['carrinho'] e ['pedidos'] e leva à tela de sucesso. Em seguida
- * dispara a validação de pagamento, que move para APROVADA ou REPROVADA
- * (RN0038) e, se aprovada, autoriza a baixa em estoque (RN0028).
+ * de entrega e forma de pagamento cobrindo o total.
+ *
+ * A finalização é UMA chamada. Validar o pagamento, decidir entre
+ * APROVADA e REPROVADA (RN0038), dar baixa no estoque (RN0028), consumir
+ * os cupons, emitir o troco (RN0036) e esvaziar o carrinho acontecem no
+ * servidor, dentro de uma transação — como várias chamadas, uma falha no
+ * meio deixaria pedido criado, cupom gasto e estoque intacto.
  *
  * ATENDE: RF0033, RF0038, RN0028, RN0037, RN0038
  */
@@ -26,11 +28,8 @@ import { useCarrinhoController } from '@/controllers/carrinho/useCarrinhoControl
 import { useCupomController } from '@/controllers/checkout/useCupomController';
 import { useFreteController } from '@/controllers/checkout/useFreteController';
 import { usePagamentoController } from '@/controllers/checkout/usePagamentoController';
-import { useMovimentacaoEstoqueController } from '@/controllers/estoque/useMovimentacaoEstoqueController';
 import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { useAuth } from '@/hooks/useAuth';
-import { clientesService } from '@/service/clientes/service';
-import { cuponsService } from '@/service/cupons/service';
 import { pedidosService } from '@/service/pedidos/service';
 import { Pagamento } from '@/types/pedidos/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
@@ -42,9 +41,7 @@ export const useCheckoutController = () => {
   const clienteId = user?.clienteId;
 
   const { registrar } = useLogTransacaoController();
-  const { darBaixa } = useMovimentacaoEstoqueController();
-  const { itens, subtotal, revalidarDisponibilidade, limpar } =
-    useCarrinhoController();
+  const { itens, subtotal } = useCarrinhoController();
 
   const frete = useFreteController(clienteId, itens);
   const totalComFrete = Number((subtotal + frete.frete).toFixed(2));
@@ -77,15 +74,6 @@ export const useCheckoutController = () => {
         throw new Error('O valor da compra não foi integralmente coberto.');
       }
 
-      // RN0032: última conferência de estoque antes de fechar a compra.
-      const alertas = await revalidarDisponibilidade();
-
-      if (alertas.length > 0) {
-        throw new Error(
-          'A disponibilidade de alguns itens mudou. Revise o carrinho antes de finalizar.',
-        );
-      }
-
       const pagamentosDeCupom: Pagamento[] = cupom.cuponsAplicados.map(
         ({ cupom: aplicado, valorConsumido }) => ({
           forma:
@@ -97,54 +85,17 @@ export const useCheckoutController = () => {
         }),
       );
 
-      // RF0038: a compra nasce EM PROCESSAMENTO.
-      const pedido = await pedidosService.finalizarCompra(
-        {
-          clienteId,
-          enderecoEntregaId: frete.enderecoSelecionado.id,
-          frete: frete.frete,
-          pagamentos: [...pagamentosDeCupom, ...pagamento.montarPagamentos()],
-        },
-        itens,
-      );
-
-      await cuponsService.marcarComoUtilizados(
-        cupom.cuponsAplicados.map(c => c.cupom.codigo),
-      );
-
-      // RN0036: a sobra dos cupons volta como um novo cupom de troca.
-      if (cupom.troco > 0) {
-        const cupomTroco = await cuponsService.gerarCupomTroca(
-          cupom.troco,
-          clienteId,
-        );
-        await pedidosService.registrarCupomTroco(pedido.id, cupomTroco.codigo);
-      }
-
-      // RN0037/RN0038: a operadora valida e o status vira APROVADA ou
-      // REPROVADA conforme o retorno.
-      const { aprovada } = await pagamento.validarComOperadora();
-
-      const pedidoAtualizado = await pedidosService.atualizarStatus(
-        pedido.id,
-        aprovada ? 'APROVADA' : 'REPROVADA',
+      /**
+       * RF0038 e RN0032: a API confere o estoque de novo dentro da
+       * transação e recusa a compra se algo mudou desde a adição — por
+       * isso não há revalidação separada aqui.
+       */
+      return pedidosService.finalizarCompra({
         clienteId,
-      );
-
-      // RN0028: só se dá baixa no estoque de compra efetivada.
-      if (aprovada) {
-        await darBaixa(
-          itens.map(item => ({
-            produtoId: item.produto.id,
-            quantidade: item.quantidade,
-          })),
-          `Baixa referente ao pedido ${pedido.numero}.`,
-        );
-        // RN0027: a compra recém-aprovada reposiciona o ranking.
-        await clientesService.atualizarRanking(clienteId);
-      }
-
-      return pedidoAtualizado;
+        enderecoEntregaId: frete.enderecoSelecionado.id,
+        frete: frete.frete,
+        pagamentos: [...pagamentosDeCupom, ...pagamento.montarPagamentos()],
+      });
     },
     onSuccess: async pedido => {
       registrar({
@@ -153,15 +104,21 @@ export const useCheckoutController = () => {
         operacao: 'INSERCAO',
       });
 
-      await limpar();
+      // O servidor já esvaziou o carrinho ao fechar a compra; aqui só
+      // soltamos o estado local das etapas.
       cupom.limparCupons();
       pagamento.limparPagamentos();
 
+      queryClient.invalidateQueries({ queryKey: ['carrinho'] });
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['cupons'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
 
-      handleSuccess(`Compra ${pedido.numero} registrada com sucesso!`);
+      handleSuccess(
+        pedido.status === 'REPROVADA'
+          ? `Compra ${pedido.numero} registrada, mas o pagamento foi recusado.`
+          : `Compra ${pedido.numero} aprovada com sucesso!`,
+      );
       router.push(`/checkout/sucesso?pedido=${pedido.id}`);
     },
     onError: handleError,
