@@ -4,34 +4,17 @@
  * O QUE FAZ: entrega as listas de domínio que alimentam todos os selects
  * de cadastro do sistema.
  *
- * COMO FARÁ: expõe uma função de leitura por tabela — `fetchCategorias`,
- * `fetchMarcas`, `fetchEspecies`, `fetchPortes`, `fetchCores`,
- * `fetchMateriais`, `fetchFornecedores`, `fetchBandeiras`,
- * `fetchGruposPrecificacao`, `fetchMotivosInativacao`,
- * `fetchMotivosAtivacao` — todas devolvendo o mock correspondente através
- * do `delay`. São dados estáveis, então o controller as consome com
- * staleTime alto.
+ * COMO FARÁ: a API devolve as treze tabelas numa resposta só, em
+ * `GET /dominios`. O service busca uma vez e guarda a promessa: as catorze
+ * funções de leitura recortam esse mesmo resultado, em vez de cada uma
+ * disparar a sua requisição. São dados estáveis — o controller já as
+ * consome com `staleTime` infinito —, e catorze idas à rede para montar os
+ * selects de uma tela seria desperdício visível.
  *
  * ATENDE: RNF0013, RN0023, RN0025
  */
 
-import {
-  mockBandeiras,
-  mockCategorias,
-  mockCores,
-  mockEspecies,
-  mockFornecedores,
-  mockGruposPrecificacao,
-  mockMarcas,
-  mockMateriais,
-  mockMotivosAtivacao,
-  mockMotivosInativacao,
-  mockPortes,
-  mockTiposLogradouro,
-  mockTiposResidencia,
-  mockTiposTelefone,
-} from '@/mock/dominios/mock';
-import { delay } from '@/service/api/delay';
+import { api } from '@/service/api/request';
 import {
   BandeiraCartao,
   Categoria,
@@ -50,65 +33,73 @@ import {
   TipoTelefone,
 } from '@/types/dominios/types';
 
-// Domínios são estáveis: latência curta, pois não custam consulta real.
-const LATENCIA = 150;
+/**
+ * A espécie não é tabela do banco: é um enum do schema, e o que varia é só
+ * o rótulo exibido. Fica aqui porque é dado de interface, não de domínio.
+ */
+const ESPECIES: { value: Especie; label: string }[] = [
+  { value: 'CAO', label: 'Cão' },
+  { value: 'GATO', label: 'Gato' },
+  { value: 'OUTRO', label: 'Outro' },
+];
+
+/**
+ * A busca em andamento ou já concluída. Guardar a promessa, e não o
+ * resultado, faz com que chamadas simultâneas compartilhem a mesma
+ * requisição em vez de dispararem várias.
+ */
+let emCache: Promise<Dominios> | undefined;
+
+const todos = (): Promise<Dominios> => {
+  if (!emCache) {
+    emCache = api<Dominios>('/dominios').catch(erro => {
+      // Uma promessa rejeitada em cache nunca mais deixaria tentar de novo.
+      emCache = undefined;
+      throw erro;
+    });
+  }
+
+  return emCache;
+};
+
+const recortar = <K extends keyof Dominios>(chave: K): Promise<Dominios[K]> =>
+  todos().then(d => d[chave]);
 
 export const dominiosService = {
   fetchGruposPrecificacao: (): Promise<GrupoPrecificacao[]> =>
-    delay(mockGruposPrecificacao, LATENCIA),
+    recortar('gruposPrecificacao'),
 
-  fetchMarcas: (): Promise<Marca[]> => delay(mockMarcas, LATENCIA),
+  fetchMarcas: (): Promise<Marca[]> => recortar('marcas'),
 
-  fetchCategorias: (): Promise<Categoria[]> => delay(mockCategorias, LATENCIA),
+  fetchCategorias: (): Promise<Categoria[]> => recortar('categorias'),
 
   fetchEspecies: (): Promise<{ value: Especie; label: string }[]> =>
-    delay(mockEspecies, LATENCIA),
+    Promise.resolve(ESPECIES),
 
-  fetchPortes: (): Promise<Porte[]> => delay(mockPortes, LATENCIA),
+  fetchPortes: (): Promise<Porte[]> => recortar('portes'),
 
-  fetchCores: (): Promise<Cor[]> => delay(mockCores, LATENCIA),
+  fetchCores: (): Promise<Cor[]> => recortar('cores'),
 
-  fetchMateriais: (): Promise<Material[]> => delay(mockMateriais, LATENCIA),
+  fetchMateriais: (): Promise<Material[]> => recortar('materiais'),
 
-  fetchFornecedores: (): Promise<Fornecedor[]> =>
-    delay(mockFornecedores, LATENCIA),
+  fetchFornecedores: (): Promise<Fornecedor[]> => recortar('fornecedores'),
 
-  fetchBandeiras: (): Promise<BandeiraCartao[]> =>
-    delay(mockBandeiras, LATENCIA),
+  fetchBandeiras: (): Promise<BandeiraCartao[]> => recortar('bandeiras'),
 
   fetchTiposResidencia: (): Promise<TipoResidencia[]> =>
-    delay(mockTiposResidencia, LATENCIA),
+    recortar('tiposResidencia'),
 
   fetchTiposLogradouro: (): Promise<TipoLogradouro[]> =>
-    delay(mockTiposLogradouro, LATENCIA),
+    recortar('tiposLogradouro'),
 
-  fetchTiposTelefone: (): Promise<TipoTelefone[]> =>
-    delay(mockTiposTelefone, LATENCIA),
+  fetchTiposTelefone: (): Promise<TipoTelefone[]> => recortar('tiposTelefone'),
 
   fetchMotivosInativacao: (): Promise<MotivoInativacao[]> =>
-    delay(mockMotivosInativacao, LATENCIA),
+    recortar('motivosInativacao'),
 
   fetchMotivosAtivacao: (): Promise<MotivoAtivacao[]> =>
-    delay(mockMotivosAtivacao, LATENCIA),
+    recortar('motivosAtivacao'),
 
   /** Usada pela tela de manutenção de domínios do admin (RNF0013). */
-  fetchTodos: (): Promise<Dominios> =>
-    delay(
-      {
-        gruposPrecificacao: mockGruposPrecificacao,
-        marcas: mockMarcas,
-        categorias: mockCategorias,
-        portes: mockPortes,
-        cores: mockCores,
-        materiais: mockMateriais,
-        fornecedores: mockFornecedores,
-        bandeiras: mockBandeiras,
-        tiposResidencia: mockTiposResidencia,
-        tiposLogradouro: mockTiposLogradouro,
-        tiposTelefone: mockTiposTelefone,
-        motivosInativacao: mockMotivosInativacao,
-        motivosAtivacao: mockMotivosAtivacao,
-      },
-      LATENCIA,
-    ),
+  fetchTodos: (): Promise<Dominios> => todos(),
 };

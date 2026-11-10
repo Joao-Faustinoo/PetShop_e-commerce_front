@@ -1,15 +1,16 @@
 /**
  * [CONTROLLER] useChatRecomendacaoController
  *
- * O QUE FAZ: conduz a conversa com o assistente de recomendação e monta
- * o contexto que personaliza as respostas.
+ * O QUE FAZ: conduz a conversa com o assistente de recomendação.
  *
  * COMO FARÁ: mantém a lista de mensagens em estado local e usa
- * `useMutation` para enviar cada pergunta ao `chatService`, acrescentando
- * a resposta ao histórico de forma otimista. Monta o
- * `ContextoRecomendacao` reunindo os pets do cliente (espécie, raça,
- * porte), o histórico de compras e as preferências, que é o insumo que a
- * RNF0047 manda usar para sugerir tamanho e itens adequados.
+ * `useMutation` para enviar cada pergunta à API, acrescentando a resposta
+ * ao histórico. O contexto que personaliza a resposta — pets, histórico de
+ * compras e preferências (RNF0047) — é montado no servidor, que tem os
+ * dados e a chave do modelo; aqui só sobe a pergunta.
+ *
+ * Os pets continuam sendo consultados, mas por outro motivo: a tela avisa
+ * o cliente sem pet cadastrado de que a sugestão de tamanho depende disso.
  *
  * ATENDE: RNF0047
  */
@@ -20,7 +21,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '@/hooks/useAuth';
-import { chatService, montarContexto } from '@/service/chat/service';
+import { chatService } from '@/service/chat/service';
+import { petsService } from '@/service/pets/service';
 import { Mensagem } from '@/types/chat/types';
 import handleError from '@/utils/handleToast';
 
@@ -44,26 +46,15 @@ export const useChatRecomendacaoController = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversaInicial]);
 
-  /**
-   * RNF0047: pets, histórico de compras e preferências são o insumo que
-   * personaliza a resposta e a sugestão de tamanho.
-   */
-  const { data: contexto } = useQuery({
-    queryKey: ['chat', 'contexto', clienteId],
-    queryFn: () => montarContexto(clienteId as number),
+  /** Só para avisar quem ainda não cadastrou pet; a sugestão é do servidor. */
+  const { data: pets = [] } = useQuery({
+    queryKey: ['pets', clienteId],
+    queryFn: () => petsService.fetchPetsPorCliente(clienteId as number),
     enabled: !!clienteId,
   });
 
   const { mutate: enviar, isPending } = useMutation({
-    mutationFn: (texto: string) => {
-      if (!contexto) {
-        return Promise.reject(
-          new Error('Não foi possível carregar seus dados. Tente novamente.'),
-        );
-      }
-
-      return chatService.enviarMensagem(texto, contexto);
-    },
+    mutationFn: (texto: string) => chatService.enviarMensagem(texto),
     onSuccess: resposta => {
       setMensagens(atuais => [...atuais, resposta]);
     },
@@ -94,7 +85,7 @@ export const useChatRecomendacaoController = () => {
     enviarMensagem,
     /** True enquanto o assistente "digita" a resposta. */
     respondendo: isPending,
-    contexto,
-    temPetCadastrado: (contexto?.pets.length ?? 0) > 0,
+    pets,
+    temPetCadastrado: pets.length > 0,
   };
 };

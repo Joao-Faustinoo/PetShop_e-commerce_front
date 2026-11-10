@@ -16,13 +16,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { trocasService } from '@/service/trocas/service';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useAutorizarTrocaController = () => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   const { mutate: autorizarTroca, isPending } = useMutation({
     mutationFn: async (trocaId: number) => {
@@ -33,13 +31,6 @@ export const useAutorizarTrocaController = () => {
       return trocasService.autorizarTroca(trocaId);
     },
     onSuccess: troca => {
-      registrar({
-        entidade: 'Troca',
-        entidadeId: troca.id,
-        operacao: 'ALTERACAO',
-        antes: { status: 'EM_TROCA' },
-        depois: { status: troca.status },
-      });
 
       queryClient.invalidateQueries({ queryKey: ['trocas'] });
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });

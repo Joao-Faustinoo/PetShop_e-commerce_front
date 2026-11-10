@@ -16,10 +16,9 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiEdit2, FiPlus, FiPower, FiZap } from 'react-icons/fi';
+import { FiEdit2, FiPlus, FiPower } from 'react-icons/fi';
 
 import PrimaryButton from '@/components/Buttons/Primary/button';
-import SecondaryButton from '@/components/Buttons/Secondary/button';
 import SearchInput from '@/components/Inputs/SearchInput/input';
 import ConfirmarSituacao from '@/components/Modals/ConfirmarSituacao';
 import ModalConfirmacao from '@/components/Modals/Confirmacao';
@@ -42,8 +41,6 @@ const AdminProdutos = () => {
   const router = useRouter();
   const { categorias, marcas, especies } = useDominiosController();
   const { propsDoModal, pedirConfirmacao } = useConfirmacao();
-  const { avaliarInativacaoAutomatica, isPending: avaliando } =
-    useSituacaoProdutoController();
 
   const [busca, setBusca] = useState('');
   const buscaDebounced = useDebounce(busca);
@@ -78,23 +75,6 @@ const AdminProdutos = () => {
         </S.Titulo>
 
         <S.Acoes>
-          {/* RF0013/RN0016: inativa como FORA DE LINHA os sem estoque e sem venda. */}
-          <SecondaryButton
-            label="Inativação automática"
-            icon={<FiZap size={15} />}
-            disabled={avaliando}
-            onClick={() =>
-              pedirConfirmacao({
-                variante: 'alerta',
-                titulo: 'Inativação automática',
-                mensagem:
-                  'Todo produto sem estoque e sem venda será inativado como FORA DE LINHA de uma vez, saindo do catálogo. Cada um pode ser reativado depois, informando o motivo.',
-                rotuloConfirmar: 'Inativar',
-                aoConfirmar: () => avaliarInativacaoAutomatica(),
-              })
-            }
-          />
-
           <PrimaryButton
             label="Novo produto"
             icon={<FiPlus size={16} />}

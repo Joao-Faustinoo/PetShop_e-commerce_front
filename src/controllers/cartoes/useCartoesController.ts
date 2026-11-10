@@ -16,7 +16,6 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { cartoesService } from '@/service/cartoes/service';
 import {
   AlterarCartaoPayload,
@@ -24,17 +23,20 @@ import {
 } from '@/types/cartoes/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
-export const useCartoesController = (clienteId?: number) => {
+export const useCartoesController = (
+  clienteId?: number,
+  /** RF0036: no checkout, inclui o cartão criado só para aquela compra. */
+  incluirNaoSalvos = false,
+) => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   const {
     data: cartoes = [],
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['cartoes', clienteId],
-    queryFn: () => cartoesService.fetchCartoesPorCliente(),
+    queryKey: ['cartoes', clienteId, incluirNaoSalvos],
+    queryFn: () => cartoesService.fetchCartoesPorCliente(incluirNaoSalvos),
     enabled: !!clienteId,
   });
 
@@ -44,7 +46,12 @@ export const useCartoesController = (clienteId?: number) => {
   };
 
   const { mutate: criar, isPending: criando } = useMutation({
-    mutationFn: (payload: Omit<CriarCartaoPayload, 'clienteId'>) => {
+    mutationFn: ({
+      salvarNoPerfil = true,
+      ...payload
+    }: Omit<CriarCartaoPayload, 'clienteId'> & {
+      salvarNoPerfil?: boolean;
+    }) => {
       if (!clienteId) {
         return Promise.reject(
           new Error('É necessário estar logado para cadastrar um cartão.'),
@@ -52,14 +59,12 @@ export const useCartoesController = (clienteId?: number) => {
       }
 
       // RN0025: o service confere a bandeira contra as cadastradas.
-      return cartoesService.criarCartao({ ...payload, clienteId });
+      return cartoesService.criarCartao(
+        { ...payload, clienteId },
+        salvarNoPerfil,
+      );
     },
     onSuccess: cartao => {
-      registrar({
-        entidade: 'Cartao',
-        entidadeId: cartao.id,
-        operacao: 'INSERCAO',
-      });
       invalidar();
       handleSuccess('Cartão adicionado ao seu perfil.');
     },

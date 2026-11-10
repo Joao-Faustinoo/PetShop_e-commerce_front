@@ -19,7 +19,6 @@
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { clientesService } from '@/service/clientes/service';
 import {
   AlterarClientePayload,
@@ -31,7 +30,6 @@ import handleError, { handleSuccess } from '@/utils/handleToast';
 export const useClienteFormController = (clienteAtual?: Cliente) => {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const { registrar } = useLogTransacaoController();
 
   const invalidar = () =>
     queryClient.invalidateQueries({ queryKey: ['clientes'] });
@@ -50,11 +48,6 @@ export const useClienteFormController = (clienteAtual?: Cliente) => {
       return clientesService.criarCliente(payload);
     },
     onSuccess: cliente => {
-      registrar({
-        entidade: 'Cliente',
-        entidadeId: cliente.id,
-        operacao: 'INSERCAO',
-      });
       invalidar();
       handleSuccess(
         `Cadastro concluído! Seu código de cliente é ${cliente.codigo}.`,
@@ -68,13 +61,6 @@ export const useClienteFormController = (clienteAtual?: Cliente) => {
     mutationFn: (payload: AlterarClientePayload) =>
       clientesService.alterarCliente(payload),
     onSuccess: cliente => {
-      registrar({
-        entidade: 'Cliente',
-        entidadeId: cliente.id,
-        operacao: 'ALTERACAO',
-        antes: clienteAtual as unknown as Record<string, unknown>,
-        depois: cliente as unknown as Record<string, unknown>,
-      });
       invalidar();
       queryClient.invalidateQueries({ queryKey: ['clientes', cliente.id] });
       handleSuccess('Dados cadastrais atualizados.');

@@ -3,56 +3,41 @@
  *
  * O QUE FAZ: expõe o CRUD dos pets vinculados a um cliente.
  *
- * COMO FARÁ: `fetchPetsPorCliente(clienteId)` filtra `mockPets` pelo
- * dono; `criarPet`, `alterarPet` e `removerPet` mutam o array em memória.
- * O clienteId é sempre obrigatório na criação, refletindo a RN0029 já na
- * camada de dados.
+ * COMO FARÁ: chama a API. O cadastro e a listagem pendem da rota do
+ * cliente — `/clientes/:clienteId/pets` —, porque a RN0029 amarra o pet a
+ * um dono: ele não existe solto. Alterar e remover usam `/pets/:id`, já
+ * que aí o pet existe e o id basta.
+ *
+ * As regras saíram daqui: quem confere o vínculo, os campos mínimos e a
+ * posse do pet é o servidor.
  *
  * ATENDE: RF0028, RF0029, RN0029
  */
 
-import { mockPets, proximoIdPet } from '@/mock/pets/mock';
-import { delay, delayErro } from '@/service/api/delay';
+import { api } from '@/service/api/request';
 import { AlterarPetPayload, CriarPetPayload, Pet } from '@/types/pets/types';
 
 export const petsService = {
   fetchPetsPorCliente(clienteId: number): Promise<Pet[]> {
-    return delay(mockPets.filter(pet => pet.clienteId === clienteId));
+    return api<Pet[]>(`/clientes/${clienteId}/pets`);
   },
 
   criarPet(payload: CriarPetPayload): Promise<Pet> {
-    // RN0029: sem dono, o pet não pode existir.
-    if (!payload.clienteId) {
-      return delayErro('O pet precisa estar associado a um cliente.');
-    }
+    const { clienteId, ...dados } = payload;
 
-    const pet: Pet = { ...payload, id: proximoIdPet() };
-    mockPets.push(pet);
-
-    return delay(pet);
+    return api<Pet>(`/clientes/${clienteId}/pets`, {
+      method: 'POST',
+      body: dados,
+    });
   },
 
   alterarPet(payload: AlterarPetPayload): Promise<Pet> {
-    const indice = mockPets.findIndex(pet => pet.id === payload.id);
+    const { id, clienteId: _clienteId, ...dados } = payload;
 
-    if (indice < 0) {
-      return delayErro('Pet não encontrado.');
-    }
-
-    mockPets[indice] = { ...mockPets[indice], ...payload };
-
-    return delay(mockPets[indice]);
+    return api<Pet>(`/pets/${id}`, { method: 'PUT', body: dados });
   },
 
-  removerPet(id: number): Promise<void> {
-    const indice = mockPets.findIndex(pet => pet.id === id);
-
-    if (indice < 0) {
-      return delayErro('Pet não encontrado.');
-    }
-
-    mockPets.splice(indice, 1);
-
-    return delay(undefined);
+  async removerPet(id: number): Promise<void> {
+    await api<void>(`/pets/${id}`, { method: 'DELETE' });
   },
 };

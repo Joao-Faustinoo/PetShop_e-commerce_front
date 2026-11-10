@@ -19,14 +19,12 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { trocasService } from '@/service/trocas/service';
 import { ReceberTrocaPayload } from '@/types/trocas/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useReceberTrocaController = () => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   const { mutate: receberTroca, isPending } = useMutation({
     mutationFn: async (payload: ReceberTrocaPayload) => {
@@ -41,16 +39,6 @@ export const useReceberTrocaController = () => {
       return troca;
     },
     onSuccess: troca => {
-      registrar({
-        entidade: 'Troca',
-        entidadeId: troca.id,
-        operacao: 'ALTERACAO',
-        antes: { status: 'TROCA_AUTORIZADA' },
-        depois: {
-          status: 'TROCADO',
-          cupomGeradoCodigo: troca.cupomGeradoCodigo,
-        },
-      });
 
       queryClient.invalidateQueries({ queryKey: ['trocas'] });
       queryClient.invalidateQueries({ queryKey: ['estoque'] });

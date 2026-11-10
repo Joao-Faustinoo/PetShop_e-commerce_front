@@ -1,61 +1,32 @@
 /**
  * [CONTROLLER] useLogTransacaoController
  *
- * O QUE FAZ: registra a auditoria de toda operação de escrita do sistema
- * e expõe a consulta desse histórico.
+ * O QUE FAZ: expõe a consulta do registro de operações de escrita.
  *
- * COMO FARÁ: expõe `registrar({ entidade, entidadeId, operacao, antes,
- * depois })`, que completa o registro com data, hora e o usuário da
- * sessão antes de chamar o service. É chamado no `onSuccess` das
- * mutations dos demais controllers, e não pelas telas — assim nenhuma
- * escrita escapa do log exigido pela RNF0012.
+ * COMO FARÁ: `useQuery` sobre `fetchLogs`, com os filtros da tela.
+ *
+ * **Não registra mais nada.** Até a migração para a API, cada controller
+ * chamava `registrar` no `onSuccess` da sua mutation. Agora quem registra
+ * é o service de cada domínio no servidor, dentro da mesma transação que
+ * faz a escrita — o registro e o dado registrado valem ou falham juntos, e
+ * uma operação feita direto na API também fica registrada, o que a
+ * gravação pelo navegador nunca garantiria.
  *
  * ATENDE: RNF0012
  */
 
 'use client';
 
-import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { useAuth } from '@/hooks/useAuth';
-import { diferencaEntre, logService } from '@/service/log/service';
-import { LogFiltros, OperacaoLog } from '@/types/log/types';
-
-interface RegistrarParams {
-  entidade: string;
-  entidadeId: number;
-  operacao: OperacaoLog;
-  /** Estado anterior; ausente nas inserções. */
-  antes?: Record<string, unknown>;
-  depois?: Record<string, unknown>;
-}
+import { logService } from '@/service/log/service';
+import { LogFiltros } from '@/types/log/types';
 
 export const useLogTransacaoController = (filtros: LogFiltros = {}) => {
-  const { user } = useAuth();
-
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['logs', filtros],
     queryFn: () => logService.fetchLogs(filtros),
   });
 
-  /**
-   * RNF0012: além do usuário e do instante, guarda o antes/depois dos
-   * campos que mudaram, para a alteração ficar auditável.
-   */
-  const registrar = useCallback(
-    ({ entidade, entidadeId, operacao, antes, depois }: RegistrarParams) =>
-      logService.registrarLog({
-        usuarioId: user?.id ?? 0,
-        usuarioNome: user?.nome ?? 'Sistema',
-        entidade,
-        entidadeId,
-        operacao,
-        dadosAlterados:
-          antes && depois ? diferencaEntre(antes, depois) : undefined,
-      }),
-    [user],
-  );
-
-  return { logs, isLoading, registrar };
+  return { logs, isLoading };
 };

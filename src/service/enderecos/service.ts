@@ -21,8 +21,21 @@ import {
 
 export const enderecosService = {
   /** O cliente é o da sessão; o id não viaja. */
-  async fetchEnderecosPorCliente(tipo?: TipoEndereco): Promise<Endereco[]> {
-    return api<Endereco[]>(`/enderecos${tipo ? `?tipo=${tipo}` : ''}`);
+  async fetchEnderecosPorCliente(
+    tipo?: TipoEndereco,
+    incluirNaoSalvos = false,
+  ): Promise<Endereco[]> {
+    const params = new URLSearchParams();
+
+    if (tipo) params.set('tipo', tipo);
+    /*
+     * RF0035: o checkout também precisa ver o endereço que acabou de ser
+     * criado para aquela compra sem ir para o perfil — sem isto ele some
+     * da lista no instante seguinte ao cadastro.
+     */
+    if (incluirNaoSalvos) params.set('incluirNaoSalvos', 'true');
+
+    return api<Endereco[]>(`/enderecos?${params.toString()}`);
   },
 
   async fetchEnderecoPorId(id: number): Promise<Endereco> {
@@ -35,8 +48,15 @@ export const enderecosService = {
   },
 
   /** RF0035 e RNF0034: acrescenta sem mexer no resto do cadastro. */
-  async criarEndereco(payload: CriarEnderecoPayload): Promise<Endereco> {
-    return api<Endereco>('/enderecos', { method: 'POST', body: payload });
+  /** RF0035: `salvarNoPerfil` decide se ele fica guardado no cadastro. */
+  async criarEndereco(
+    payload: CriarEnderecoPayload,
+    salvarNoPerfil = true,
+  ): Promise<Endereco> {
+    return api<Endereco>('/enderecos', {
+      method: 'POST',
+      body: { ...payload, salvarNoPerfil },
+    });
   },
 
   async alterarEndereco(payload: AlterarEnderecoPayload): Promise<Endereco> {

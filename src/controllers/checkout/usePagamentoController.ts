@@ -44,7 +44,8 @@ export const usePagamentoController = (
     cartaoPreferencial,
     criar: cadastrarCartao,
     isPending: salvandoCartao,
-  } = useCartoesController(clienteId);
+    // RF0036: idem para o cartão informado apenas nesta compra.
+  } = useCartoesController(clienteId, true);
 
   const [pagamentos, setPagamentos] = useState<PagamentoCartao[]>([]);
 

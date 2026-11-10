@@ -20,6 +20,13 @@
  * RN0023, RN0024, RN0025, RN0031, RN0033, RN0034, RN0035, RN0036
  */
 
+/*
+ * O `export` isola o escopo deste arquivo. Sem ele o TypeScript trata o
+ * spec como script global, e uma constante de mesmo nome em outro spec
+ * passa a colidir com esta.
+ */
+export {};
+
 const API = 'http://localhost:3333/api';
 const CHAVE_TOKEN = '@petshop: accessToken';
 

@@ -1,82 +1,59 @@
 /**
- * [MODEL] Service do log de transação
+ * [MODEL] Service de log de transações
  *
- * O QUE FAZ: grava e consulta o registro de auditoria de toda operação
- * de escrita.
+ * O QUE FAZ: consulta o registro das operações de escrita do sistema.
  *
- * COMO FARÁ: `registrarLog({ entidade, entidadeId, operacao, dados })`
- * acrescenta a `mockLogs` um registro com data, hora e usuário
- * responsável obtido da sessão; `fetchLogs(filtros)` devolve o histórico
- * filtrado por entidade, usuário ou período.
+ * COMO FARÁ: uma chamada à API. **Não existe função de gravação aqui, e
+ * isso é proposital.** Quem registra é o service de cada domínio no
+ * servidor, de dentro da mesma transação que faz a escrita: assim o
+ * registro e o dado registrado valem ou falham juntos, e uma operação
+ * feita pela API sem passar por esta tela também fica registrada.
+ *
+ * Gravar o log a partir do navegador deixaria o registro à mercê de a aba
+ * fechar na hora errada, e de nada ser escrito quando a chamada não vier
+ * da interface — que é exatamente o que a RNF0012 não pode permitir.
  *
  * ATENDE: RNF0012
  */
 
-import { mockLogs, proximoIdLog } from '@/mock/log/mock';
-import { delay } from '@/service/api/delay';
-import {
-  CampoAlterado,
-  LogFiltros,
-  LogTransacao,
-  RegistrarLogPayload,
-} from '@/types/log/types';
+import { api } from '@/service/api/request';
+import { Pagina } from '@/types/common/types';
+import { CampoAlterado, LogFiltros, LogTransacao } from '@/types/log/types';
+
+/** Só os filtros preenchidos entram na URL. */
+const montarQuery = (filtros: LogFiltros): string => {
+  const params = new URLSearchParams();
+
+  if (filtros.entidade) params.set('entidade', filtros.entidade);
+  if (filtros.entidadeId) params.set('entidadeId', String(filtros.entidadeId));
+  if (filtros.usuarioId) params.set('usuarioId', String(filtros.usuarioId));
+  if (filtros.operacao) params.set('operacao', filtros.operacao);
+  params.set('itensPorPagina', '100');
+
+  return params.toString();
+};
 
 export const logService = {
-  registrarLog(payload: RegistrarLogPayload): Promise<LogTransacao> {
-    const registro: LogTransacao = {
-      id: proximoIdLog(),
-      // RNF0012: data, hora e usuário responsável de toda escrita.
-      dataHora: new Date().toISOString(),
-      usuarioId: payload.usuarioId,
-      usuarioNome: payload.usuarioNome,
-      entidade: payload.entidade,
-      entidadeId: payload.entidadeId,
-      operacao: payload.operacao,
-      dadosAlterados: payload.dadosAlterados ?? [],
-    };
+  async fetchLogs(filtros: LogFiltros = {}): Promise<LogTransacao[]> {
+    const pagina = await api<Pagina<LogTransacao>>(
+      `/logs?${montarQuery(filtros)}`,
+    );
 
-    mockLogs.push(registro);
-
-    return delay(registro, 80);
-  },
-
-  fetchLogs(filtros: LogFiltros = {}): Promise<LogTransacao[]> {
-    const resultado = mockLogs
-      .filter(log => {
-        if (filtros.entidade && log.entidade !== filtros.entidade) return false;
-        if (filtros.entidadeId && log.entidadeId !== filtros.entidadeId) {
-          return false;
-        }
-        if (filtros.usuarioId && log.usuarioId !== filtros.usuarioId) {
-          return false;
-        }
-        if (filtros.operacao && log.operacao !== filtros.operacao) return false;
-
-        return true;
-      })
-      .sort((a, b) => b.dataHora.localeCompare(a.dataHora));
-
-    return delay(resultado);
+    return pagina.itens;
   },
 };
 
 /**
- * Compara o estado anterior e o novo de uma entidade e devolve só os
- * campos que mudaram, no formato que a RNF0012 exige guardar.
+ * Compara dois estados e devolve o que mudou. Continua exportada porque a
+ * tela a usa para exibir a diferença de um registro; o servidor faz o
+ * mesmo cálculo ao ler o log, e esta fica para quem já tem os dois objetos
+ * em mãos.
  */
-export const diferencaEntre = <T extends Record<string, unknown>>(
-  antes: T,
-  depois: Partial<T>,
+export const diferencaEntre = (
+  antes: Record<string, unknown>,
+  depois: Record<string, unknown>,
 ): CampoAlterado[] =>
-  Object.keys(depois)
-    .filter(campo => {
-      const valorAntes = antes[campo];
-      const valorDepois = depois[campo];
-
-      return JSON.stringify(valorAntes) !== JSON.stringify(valorDepois);
-    })
-    .map(campo => ({
-      campo,
-      de: antes[campo] ?? null,
-      para: depois[campo] ?? null,
-    }));
+  Object.keys(antes)
+    .concat(Object.keys(depois).filter(campo => !(campo in antes)))
+    .filter(campo => JSON.stringify(antes[campo]) !== JSON.stringify(depois[campo]))
+    .map(campo => ({ campo, de: antes[campo], para: depois[campo] }));

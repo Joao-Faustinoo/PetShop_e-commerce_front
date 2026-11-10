@@ -22,7 +22,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 
 import PrimaryButton from '@/components/Buttons/Primary/button';
 import { useLoginController } from '@/controllers/auth/useLoginController';
-import { mockCredenciais } from '@/mock/auth/mock';
+import { CREDENCIAIS_DEMO } from '@/utils/credenciaisDemo';
 import { ILoginForm, LoginSchema } from '@/validations/LoginSchema';
 
 import * as S from './styles';
@@ -86,7 +86,7 @@ const LoginForm = () => {
       <S.Atalhos>
         <small>Acesso de demonstração</small>
 
-        {mockCredenciais.map(credencial => (
+        {CREDENCIAIS_DEMO.map(credencial => (
           <S.Atalho
             key={credencial.perfil}
             type="button"

@@ -15,8 +15,6 @@
  * ATENDE: RF0017, RN0012, RN0031
  */
 
-import { mockGruposPrecificacao } from '@/mock/dominios/mock';
-import { mockProdutos } from '@/mock/produtos/mock';
 import { api } from '@/service/api/request';
 import { delay, delayErro } from '@/service/api/delay';
 import { Pagina } from '@/types/common/types';
@@ -28,21 +26,6 @@ import {
   Produto,
   ProdutoFiltros,
 } from '@/types/produtos/types';
-
-/** RF0013: produto com menos vendas que isto entra na inativação automática. */
-export const PARAMETRO_VENDA_MINIMA = 5;
-
-/** RN0013: valor de venda = custo + margem do grupo de precificação. */
-export const calcularValorVenda = (
-  valorCusto: number,
-  grupoPrecificacaoId: number,
-): number => {
-  const grupo = mockGruposPrecificacao.find(g => g.id === grupoPrecificacaoId);
-
-  return Number(
-    (valorCusto * (1 + (grupo?.margemLucro ?? 0) / 100)).toFixed(2),
-  );
-};
 
 /** Só os filtros preenchidos entram na URL. */
 const montarQuery = (filtros: ProdutoFiltros): string => {
@@ -82,69 +65,38 @@ export const produtosService = {
   },
 
   // -------------------------------------------------------------------
-  // Administração de produto — ainda sobre mock, fora do escopo da venda
+  // Administração de produto (RF0011, RF0012, RF0014, RF0016)
   // -------------------------------------------------------------------
 
+  /** RF0011: o SKU e o valor de venda são decididos pelo servidor. */
   criarProduto(payload: CriarProdutoPayload): Promise<Produto> {
-    const produto: Produto = {
-      ...payload,
-      id: Math.max(0, ...mockProdutos.map(p => p.id)) + 1,
-      sku: `PET-${String(mockProdutos.length + 1).padStart(4, '0')}`,
-      valorVenda: calcularValorVenda(
-        payload.valorCusto,
-        payload.grupoPrecificacaoId,
-      ),
-      quantidadeEstoque: 0,
-      ativo: true,
-      totalVendido: 0,
-    };
-
-    mockProdutos.push(produto);
-
-    return delay(produto);
+    return api<Produto>('/produtos', { method: 'POST', body: payload });
   },
 
+  /** RF0014. A RN0014 é conferida no servidor, com a autorização junto. */
   alterarProduto(payload: AlterarProdutoPayload): Promise<Produto> {
-    const indice = mockProdutos.findIndex(p => p.id === payload.id);
+    const { id, ...dados } = payload;
 
-    if (indice < 0) return delayErro('Produto não encontrado.');
-
-    mockProdutos[indice] = { ...mockProdutos[indice], ...payload };
-
-    return delay(mockProdutos[indice]);
+    return api<Produto>(`/produtos/${id}`, { method: 'PUT', body: dados });
   },
 
+  /** RF0012 e RN0015: inativar pede motivo e justificativa. */
   inativarProduto(payload: InativarProdutoPayload): Promise<Produto> {
-    const indice = mockProdutos.findIndex(p => p.id === payload.id);
+    const { id, motivoId, justificativa } = payload;
 
-    if (indice < 0) return delayErro('Produto não encontrado.');
-
-    mockProdutos[indice] = {
-      ...mockProdutos[indice],
-      ativo: false,
-      motivoSituacaoId: payload.motivoId,
-      justificativaSituacao: payload.justificativa,
-    };
-
-    return delay(mockProdutos[indice]);
+    return api<Produto>(`/produtos/${id}/situacao`, {
+      method: 'PATCH',
+      body: { ativo: false, motivoId, justificativa },
+    });
   },
 
+  /** RF0016 e RN0017: ativar pede motivo e justificativa também. */
   ativarProduto(payload: AtivarProdutoPayload): Promise<Produto> {
-    const indice = mockProdutos.findIndex(p => p.id === payload.id);
+    const { id, motivoId, justificativa } = payload;
 
-    if (indice < 0) return delayErro('Produto não encontrado.');
-
-    mockProdutos[indice] = {
-      ...mockProdutos[indice],
-      ativo: true,
-      motivoSituacaoId: payload.motivoId,
-      justificativaSituacao: payload.justificativa,
-    };
-
-    return delay(mockProdutos[indice]);
-  },
-
-  inativarAutomaticamente(): Promise<Produto[]> {
-    return delay([]);
+    return api<Produto>(`/produtos/${id}/situacao`, {
+      method: 'PATCH',
+      body: { ativo: true, motivoId, justificativa },
+    });
   },
 };

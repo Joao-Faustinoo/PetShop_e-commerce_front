@@ -17,14 +17,12 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { pedidosService } from '@/service/pedidos/service';
 import { Pedido, ROTULO_STATUS, StatusPedido } from '@/types/pedidos/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useStatusPedidoController = () => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   /**
    * Toda transição passa por aqui: confere o status de origem antes de
@@ -47,13 +45,6 @@ export const useStatusPedidoController = () => {
   };
 
   const aoConcluir = (pedido: Pedido, anterior: StatusPedido) => {
-    registrar({
-      entidade: 'Pedido',
-      entidadeId: pedido.id,
-      operacao: 'ALTERACAO',
-      antes: { status: anterior },
-      depois: { status: pedido.status },
-    });
 
     queryClient.invalidateQueries({ queryKey: ['pedidos'] });
     handleSuccess(

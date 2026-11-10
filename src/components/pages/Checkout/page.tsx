@@ -373,9 +373,10 @@ const Checkout = () => {
         isPending={frete.salvandoEndereco}
         ofereceSalvarNoPerfil
         onClose={() => setModalEndereco(false)}
-        onSubmit={dados => {
+        onSubmit={(dados, salvarNoPerfil) => {
+          // RF0035: o cliente decide se o endereço fica no perfil.
           frete.cadastrarEndereco(
-            { ...dados, tipo: 'ENTREGA' },
+            { ...dados, tipo: 'ENTREGA', salvarNoPerfil },
             { onSuccess: () => setModalEndereco(false) },
           );
         }}
@@ -387,10 +388,12 @@ const Checkout = () => {
         isPending={pagamento.salvandoCartao}
         ofereceSalvarNoPerfil
         onClose={() => setModalCartao(false)}
-        onSubmit={dados => {
-          pagamento.cadastrarCartao(dados, {
-            onSuccess: () => setModalCartao(false),
-          });
+        onSubmit={(dados, salvarNoPerfil) => {
+          // RF0036: idem para o cartão.
+          pagamento.cadastrarCartao(
+            { ...dados, salvarNoPerfil },
+            { onSuccess: () => setModalCartao(false) },
+          );
         }}
       />
     </S.Container>

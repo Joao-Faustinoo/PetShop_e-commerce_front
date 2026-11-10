@@ -19,7 +19,6 @@
  * ATENDE: RF0021-RF0025, RN0021, RN0022, RN0026, RN0027, RNF0035
  */
 
-import { mockPedidos } from '@/mock/pedidos/mock';
 import { api } from '@/service/api/request';
 import {
   AlterarClientePayload,
@@ -30,28 +29,6 @@ import {
 } from '@/types/clientes/types';
 import { Pagina } from '@/types/common/types';
 import { Pedido } from '@/types/pedidos/types';
-
-/**
- * RN0027: o ranking sai do perfil de compras — quanto mais o cliente
- * gastou em compras efetivadas, maior a nota, de 1 a 5.
- *
- * PENDENTE: continua sobre `mockPedidos` porque a fatia de vendas ainda
- * não existe na API. O back tem a mesma função em `clientesService`,
- * esperando a tabela Pedido; quando ela chegar, esta sai daqui.
- */
-export const calcularRanking = (clienteId: number): number => {
-  const efetivadas = mockPedidos.filter(
-    p => p.clienteId === clienteId && p.status !== 'REPROVADA',
-  );
-  const totalGasto = efetivadas.reduce((soma, p) => soma + p.total, 0);
-
-  if (totalGasto >= 1500) return 5;
-  if (totalGasto >= 800) return 4;
-  if (totalGasto >= 400) return 3;
-  if (totalGasto > 0) return 2;
-
-  return 1;
-};
 
 /** Só os filtros preenchidos entram na URL; os vazios sairiam como "". */
 const montarQuery = (filtros: ClienteFiltros): string => {
@@ -122,14 +99,4 @@ export const clientesService = {
     });
   },
 
-  /**
-   * RN0027: reavalia o ranking após uma compra ser efetivada.
-   *
-   * PENDENTE: a API ainda não expõe rota para isto — o service do back tem
-   * a regra, mas ela depende da tabela Pedido. Enquanto o checkout também
-   * é mockado, o cálculo fica aqui e não viaja para o servidor.
-   */
-  async atualizarRanking(clienteId: number): Promise<number> {
-    return calcularRanking(clienteId);
-  },
 };

@@ -3,8 +3,9 @@
  *
  * O QUE FAZ: chatbot que recomenda produtos e tamanhos adequados ao pet do cliente.
  *
- * COMO FARÁ: monta o ChatWidget e delega ao useChatRecomendacaoController, que envia a
- * pergunta junto do contexto (pets, histórico de compras e preferências).
+ * COMO FARÁ: monta o ChatWidget e delega ao useChatRecomendacaoController,
+ * que manda a pergunta à API; o contexto que personaliza a resposta (pets,
+ * histórico de compras e preferências) é montado no servidor.
  * As respostas podem vir com ProdutoCard sugeridos, clicáveis para o
  * detalhe do produto.
  *
@@ -21,7 +22,7 @@ import { useChatRecomendacaoController } from '@/controllers/chat/useChatRecomen
 import * as S from './styles';
 
 const Assistente = () => {
-  const { mensagens, enviarMensagem, respondendo, contexto, temPetCadastrado } =
+  const { mensagens, enviarMensagem, respondendo, pets, temPetCadastrado } =
     useChatRecomendacaoController();
 
   return (
@@ -43,11 +44,11 @@ const Assistente = () => {
         </S.Alerta>
       )}
 
-      {temPetCadastrado && contexto && (
+      {temPetCadastrado && (
         <S.Contexto>
           Sugestões baseadas em{' '}
           <strong>
-            {contexto.pets.map(pet => `${pet.nome} (${pet.raca})`).join(', ')}
+            {pets.map(pet => `${pet.nome} (${pet.raca})`).join(', ')}
           </strong>{' '}
           e no seu histórico de compras.
         </S.Contexto>

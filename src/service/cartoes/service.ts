@@ -20,13 +20,22 @@ import {
 
 export const cartoesService = {
   /** O cliente é o da sessão; o id não viaja. */
-  async fetchCartoesPorCliente(): Promise<Cartao[]> {
-    return api<Cartao[]>('/cartoes');
+  async fetchCartoesPorCliente(incluirNaoSalvos = false): Promise<Cartao[]> {
+    return api<Cartao[]>(
+      `/cartoes${incluirNaoSalvos ? '?incluirNaoSalvos=true' : ''}`,
+    );
   },
 
   /** RF0036: cartão novo incorporado ao perfil, para poder pagar com ele. */
-  async criarCartao(payload: CriarCartaoPayload): Promise<Cartao> {
-    return api<Cartao>('/cartoes', { method: 'POST', body: payload });
+  /** RF0036: `salvarNoPerfil` decide se ele fica guardado no cadastro. */
+  async criarCartao(
+    payload: CriarCartaoPayload,
+    salvarNoPerfil = true,
+  ): Promise<Cartao> {
+    return api<Cartao>('/cartoes', {
+      method: 'POST',
+      body: { ...payload, salvarNoPerfil },
+    });
   },
 
   async alterarCartao(payload: AlterarCartaoPayload): Promise<Cartao> {

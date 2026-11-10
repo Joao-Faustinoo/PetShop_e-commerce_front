@@ -12,7 +12,6 @@
 
 import * as yup from 'yup';
 
-import { mockBandeiras } from '@/mock/dominios/mock';
 import { apenasDigitos } from '@/utils/masks';
 
 export const CartaoSchema = yup.object({
@@ -31,12 +30,16 @@ export const CartaoSchema = yup.object({
   // RN0025: só bandeiras registradas nas tabelas de domínio.
   bandeiraId: yup
     .number()
+    /*
+     * RN0025: a bandeira precisa estar entre as registradas. Aqui só se
+     * exige que alguma tenha sido escolhida — a lista vem do servidor, e o
+     * yup valida de forma síncrona, sem poder esperar por ela. Quem recusa
+     * bandeira inexistente é a API, que é de onde a lista sai: repetir a
+     * lista aqui criaria uma segunda verdade para divergir da primeira.
+     */
     .typeError('Bandeira é obrigatória')
     .required('Bandeira é obrigatória')
-    .oneOf(
-      mockBandeiras.map(b => b.id),
-      'Selecione uma bandeira registrada no sistema',
-    ),
+    .positive('Selecione uma bandeira'),
   codigoSeguranca: yup
     .string()
     .required('Código de segurança é obrigatório')

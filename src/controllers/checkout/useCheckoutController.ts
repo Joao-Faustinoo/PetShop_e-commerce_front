@@ -28,7 +28,6 @@ import { useCarrinhoController } from '@/controllers/carrinho/useCarrinhoControl
 import { useCupomController } from '@/controllers/checkout/useCupomController';
 import { useFreteController } from '@/controllers/checkout/useFreteController';
 import { usePagamentoController } from '@/controllers/checkout/usePagamentoController';
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { useAuth } from '@/hooks/useAuth';
 import { pedidosService } from '@/service/pedidos/service';
 import { Pagamento } from '@/types/pedidos/types';
@@ -39,8 +38,6 @@ export const useCheckoutController = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const clienteId = user?.clienteId;
-
-  const { registrar } = useLogTransacaoController();
   const { itens, subtotal } = useCarrinhoController();
 
   const frete = useFreteController(clienteId, itens);
@@ -98,11 +95,6 @@ export const useCheckoutController = () => {
       });
     },
     onSuccess: async pedido => {
-      registrar({
-        entidade: 'Pedido',
-        entidadeId: pedido.id,
-        operacao: 'INSERCAO',
-      });
 
       // O servidor já esvaziou o carrinho ao fechar a compra; aqui só
       // soltamos o estado local das etapas.

@@ -1,24 +1,26 @@
 /**
  * [CONTROLLER] useSituacaoProdutoController
  *
- * O QUE FAZ: conduz a inativação e a ativação de produtos, incluindo a
- * inativação automática.
+ * O QUE FAZ: conduz a inativação e a ativação de produtos pelo
+ * administrador.
  *
  * COMO FARÁ: duas `useMutation` — inativar e ativar — que exigem motivo e
  * justificativa no payload (RN0015 e RN0017) antes de chamar o service, e
- * invalidam ['produtos'] no sucesso. Expõe também
- * `avaliarInativacaoAutomatica`, que percorre os produtos sem estoque e
- * sem venda abaixo do parâmetro do sistema, inativando-os com o motivo
- * FORA DE LINHA fixado pela RN0016. Registra tudo no log.
+ * invalidam ['produtos'] no sucesso.
  *
- * ATENDE: RF0012, RF0013, RF0016, RN0015, RN0016, RN0017, RNF0012
+ * A inativação automática (RF0013) não passa por aqui: o servidor a aplica
+ * sozinho quando o saldo do produto chega ao mínimo, ao fim da baixa da
+ * venda, com o motivo FORA DE LINHA da RN0016. Não há o que disparar da
+ * tela — uma ação manual para rodar uma regra automática seria uma
+ * contradição.
+ *
+ * ATENDE: RF0012, RF0016, RN0015, RN0017
  */
 
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { produtosService } from '@/service/produtos/service';
 import {
   AtivarProdutoPayload,
@@ -28,7 +30,6 @@ import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useSituacaoProdutoController = () => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   const invalidar = () =>
     queryClient.invalidateQueries({ queryKey: ['produtos'] });
@@ -38,13 +39,6 @@ export const useSituacaoProdutoController = () => {
     mutationFn: (payload: InativarProdutoPayload) =>
       produtosService.inativarProduto(payload),
     onSuccess: produto => {
-      registrar({
-        entidade: 'Produto',
-        entidadeId: produto.id,
-        operacao: 'ALTERACAO',
-        antes: { ativo: true },
-        depois: { ativo: false, motivoSituacaoId: produto.motivoSituacaoId },
-      });
       invalidar();
       handleSuccess(`Produto ${produto.sku} inativado.`);
     },
@@ -56,54 +50,15 @@ export const useSituacaoProdutoController = () => {
     mutationFn: (payload: AtivarProdutoPayload) =>
       produtosService.ativarProduto(payload),
     onSuccess: produto => {
-      registrar({
-        entidade: 'Produto',
-        entidadeId: produto.id,
-        operacao: 'ALTERACAO',
-        antes: { ativo: false },
-        depois: { ativo: true, motivoSituacaoId: produto.motivoSituacaoId },
-      });
       invalidar();
       handleSuccess(`Produto ${produto.sku} ativado.`);
     },
     onError: handleError,
   });
 
-  /**
-   * RF0013/RN0016: varre o catálogo e inativa como FORA DE LINHA os
-   * produtos sem estoque cuja venda ficou abaixo do parâmetro do sistema.
-   */
-  const { mutate: avaliarInativacaoAutomatica, isPending: avaliando } =
-    useMutation({
-      mutationFn: () => produtosService.inativarAutomaticamente(),
-      onSuccess: inativados => {
-        inativados.forEach(produto =>
-          registrar({
-            entidade: 'Produto',
-            entidadeId: produto.id,
-            operacao: 'ALTERACAO',
-            antes: { ativo: true },
-            depois: {
-              ativo: false,
-              motivoSituacaoId: produto.motivoSituacaoId,
-            },
-          }),
-        );
-        invalidar();
-
-        handleSuccess(
-          inativados.length === 0
-            ? 'Nenhum produto se enquadrou na inativação automática.'
-            : `${inativados.length} produto(s) inativados automaticamente como FORA DE LINHA.`,
-        );
-      },
-      onError: handleError,
-    });
-
   return {
     inativar,
     ativar,
-    avaliarInativacaoAutomatica,
-    isPending: inativando || ativando || avaliando,
+    isPending: inativando || ativando,
   };
 };

@@ -18,7 +18,6 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { clientesService } from '@/service/clientes/service';
 import {
   Cliente,
@@ -29,7 +28,6 @@ import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const useClientesController = (filtros: ClienteFiltros = {}) => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   const {
     data: clientes = [],
@@ -51,13 +49,6 @@ export const useClientesController = (filtros: ClienteFiltros = {}) => {
     mutationFn: (payload: InativarClientePayload) =>
       clientesService.inativarCliente(payload),
     onSuccess: cliente => {
-      registrar({
-        entidade: 'Cliente',
-        entidadeId: cliente.id,
-        operacao: 'ALTERACAO',
-        antes: { ativo: true },
-        depois: { ativo: false },
-      });
       atualizarNaLista(cliente);
       queryClient.invalidateQueries({ queryKey: ['clientes', cliente.id] });
       handleSuccess(`Cliente ${cliente.codigo} inativado.`);
@@ -69,13 +60,6 @@ export const useClientesController = (filtros: ClienteFiltros = {}) => {
     mutationFn: (payload: InativarClientePayload) =>
       clientesService.ativarCliente(payload),
     onSuccess: cliente => {
-      registrar({
-        entidade: 'Cliente',
-        entidadeId: cliente.id,
-        operacao: 'ALTERACAO',
-        antes: { ativo: false },
-        depois: { ativo: true },
-      });
       atualizarNaLista(cliente);
       queryClient.invalidateQueries({ queryKey: ['clientes', cliente.id] });
       handleSuccess(`Cliente ${cliente.codigo} reativado.`);

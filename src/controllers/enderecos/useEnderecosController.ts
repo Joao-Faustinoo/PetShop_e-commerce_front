@@ -18,7 +18,6 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { enderecosService } from '@/service/enderecos/service';
 import {
   AlterarEnderecoPayload,
@@ -26,18 +25,21 @@ import {
 } from '@/types/enderecos/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
-export const useEnderecosController = (clienteId?: number) => {
+export const useEnderecosController = (
+  clienteId?: number,
+  /** RF0035: no checkout, inclui o que foi criado só para aquela compra. */
+  incluirNaoSalvos = false,
+) => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   const {
     data: enderecos = [],
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['enderecos', clienteId],
+    queryKey: ['enderecos', clienteId, incluirNaoSalvos],
     queryFn: () =>
-      enderecosService.fetchEnderecosPorCliente(),
+      enderecosService.fetchEnderecosPorCliente(undefined, incluirNaoSalvos),
     enabled: !!clienteId,
   });
 
@@ -49,21 +51,24 @@ export const useEnderecosController = (clienteId?: number) => {
   };
 
   const { mutate: criar, isPending: criando } = useMutation({
-    mutationFn: (payload: Omit<CriarEnderecoPayload, 'clienteId'>) => {
+    mutationFn: ({
+      salvarNoPerfil = true,
+      ...payload
+    }: Omit<CriarEnderecoPayload, 'clienteId'> & {
+      salvarNoPerfil?: boolean;
+    }) => {
       if (!clienteId) {
         return Promise.reject(
           new Error('É necessário estar logado para cadastrar um endereço.'),
         );
       }
 
-      return enderecosService.criarEndereco({ ...payload, clienteId });
+      return enderecosService.criarEndereco(
+        { ...payload, clienteId },
+        salvarNoPerfil,
+      );
     },
     onSuccess: endereco => {
-      registrar({
-        entidade: 'Endereco',
-        entidadeId: endereco.id,
-        operacao: 'INSERCAO',
-      });
       invalidar();
       handleSuccess(`Endereço "${endereco.apelido}" adicionado.`);
     },
@@ -74,16 +79,6 @@ export const useEnderecosController = (clienteId?: number) => {
     mutationFn: (payload: AlterarEnderecoPayload) =>
       enderecosService.alterarEndereco(payload),
     onSuccess: endereco => {
-      registrar({
-        entidade: 'Endereco',
-        entidadeId: endereco.id,
-        operacao: 'ALTERACAO',
-        antes: enderecos.find(e => e.id === endereco.id) as unknown as Record<
-          string,
-          unknown
-        >,
-        depois: endereco as unknown as Record<string, unknown>,
-      });
       invalidar();
       handleSuccess(`Endereço "${endereco.apelido}" atualizado.`);
     },

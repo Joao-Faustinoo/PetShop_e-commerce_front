@@ -18,7 +18,6 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { useAuth } from '@/hooks/useAuth';
 import { estoqueService } from '@/service/estoque/service';
 import { EntradaEstoquePayload } from '@/types/estoque/types';
@@ -27,19 +26,13 @@ import handleError, { handleSuccess } from '@/utils/handleToast';
 export const useEntradaEstoqueController = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { registrar } = useLogTransacaoController();
 
   const { mutate: registrarEntrada, isPending } = useMutation({
     // RN0050/RN0061/RN0062/RNF0064: o service recusa qualquer campo
     // obrigatório ausente e a mensagem sobe direto para o toast.
     mutationFn: (payload: EntradaEstoquePayload) =>
-      estoqueService.registrarEntrada(payload, user?.id ?? 0),
+      estoqueService.registrarEntrada(payload),
     onSuccess: movimentacao => {
-      registrar({
-        entidade: 'Estoque',
-        entidadeId: movimentacao.id,
-        operacao: 'INSERCAO',
-      });
 
       queryClient.invalidateQueries({ queryKey: ['estoque'] });
       // RN0051: a entrada pode ter recalculado o valor de venda.

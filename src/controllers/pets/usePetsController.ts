@@ -17,14 +17,12 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { petsService } from '@/service/pets/service';
 import { AlterarPetPayload, CriarPetPayload } from '@/types/pets/types';
 import handleError, { handleSuccess } from '@/utils/handleToast';
 
 export const usePetsController = (clienteId?: number) => {
   const queryClient = useQueryClient();
-  const { registrar } = useLogTransacaoController();
 
   const {
     data: pets = [],
@@ -55,7 +53,6 @@ export const usePetsController = (clienteId?: number) => {
       return petsService.criarPet({ ...payload, clienteId });
     },
     onSuccess: pet => {
-      registrar({ entidade: 'Pet', entidadeId: pet.id, operacao: 'INSERCAO' });
       invalidar();
       handleSuccess(`${pet.nome} foi adicionado ao seu perfil.`);
     },
@@ -65,16 +62,6 @@ export const usePetsController = (clienteId?: number) => {
   const { mutate: alterar, isPending: alterando } = useMutation({
     mutationFn: (payload: AlterarPetPayload) => petsService.alterarPet(payload),
     onSuccess: pet => {
-      registrar({
-        entidade: 'Pet',
-        entidadeId: pet.id,
-        operacao: 'ALTERACAO',
-        antes: pets.find(p => p.id === pet.id) as unknown as Record<
-          string,
-          unknown
-        >,
-        depois: pet as unknown as Record<string, unknown>,
-      });
       invalidar();
       handleSuccess(`Dados de ${pet.nome} atualizados.`);
     },

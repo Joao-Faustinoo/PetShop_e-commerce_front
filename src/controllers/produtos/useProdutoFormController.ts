@@ -9,7 +9,7 @@
  * campos obrigatórios da RN0011 e a associação a pelo menos uma categoria
  * (RN0012, que permite mais de uma). Delega o cálculo do valor de venda
  * ao `usePrecificacaoController` e bloqueia o submit se a validação de
- * margem reprovar. Registra a operação via `useLogTransacaoController`.
+ * margem reprovar. O registro da operação (RNF0012) é feito pelo servidor.
  *
  * ATENDE: RF0011, RF0014, RN0011, RN0012, RN0013, RNF0012
  */
@@ -19,7 +19,6 @@
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { useLogTransacaoController } from '@/controllers/log/useLogTransacaoController';
 import { produtosService } from '@/service/produtos/service';
 import {
   AlterarProdutoPayload,
@@ -31,7 +30,6 @@ import handleError, { handleSuccess } from '@/utils/handleToast';
 export const useProdutoFormController = (produtoAtual?: Produto) => {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const { registrar } = useLogTransacaoController();
 
   const invalidar = () => {
     queryClient.invalidateQueries({ queryKey: ['produtos'] });
@@ -43,11 +41,6 @@ export const useProdutoFormController = (produtoAtual?: Produto) => {
       produtosService.criarProduto(payload),
     onSuccess: produto => {
       // RNF0012: toda inserção entra no log de transação.
-      registrar({
-        entidade: 'Produto',
-        entidadeId: produto.id,
-        operacao: 'INSERCAO',
-      });
       invalidar();
       handleSuccess(`Produto ${produto.sku} cadastrado com sucesso.`);
       router.push('/admin/produtos');
@@ -59,13 +52,6 @@ export const useProdutoFormController = (produtoAtual?: Produto) => {
     mutationFn: (payload: AlterarProdutoPayload) =>
       produtosService.alterarProduto(payload),
     onSuccess: produto => {
-      registrar({
-        entidade: 'Produto',
-        entidadeId: produto.id,
-        operacao: 'ALTERACAO',
-        antes: produtoAtual as unknown as Record<string, unknown>,
-        depois: produto as unknown as Record<string, unknown>,
-      });
       invalidar();
       handleSuccess(`Produto ${produto.sku} atualizado com sucesso.`);
       router.push('/admin/produtos');
